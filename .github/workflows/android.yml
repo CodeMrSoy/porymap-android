@@ -34,6 +34,9 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
       - name: Test project ZIP round trips and extraction boundaries
         run: |
           mkdir -p build/java-tests
@@ -116,3 +119,4 @@ jobs:
           name: android-emulator-evidence
           path: build/emulator-evidence/
           if-no-files-found: warn
+
