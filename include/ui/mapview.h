@@ -24,7 +24,7 @@ public:
 #endif
     }
 
-    Editor *editor;
+    Editor *editor = nullptr;
 
     Overlay * getOverlay(int layer);
     void clearOverlayMap();
