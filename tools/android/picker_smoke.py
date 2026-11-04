@@ -21,10 +21,19 @@ def screenshot(name):
 
 
 def snapshot():
-    adb("shell", "uiautomator", "dump", "/sdcard/porymap-picker.xml")
-    raw = adb("exec-out", "cat", "/sdcard/porymap-picker.xml")
-    (evidence / "picker.xml").write_bytes(raw)
-    return list(ET.fromstring(raw).iter("node"))
+    # DocumentsUI's first launch can still be laying out while the tap returns.
+    # uiautomator sometimes exits zero without writing a dump in that state.
+    for _ in range(12):
+        message = adb("shell", "uiautomator", "dump", "--compressed",
+                      "/data/local/tmp/porymap-picker.xml", check=False)
+        raw = adb("exec-out", "cat", "/data/local/tmp/porymap-picker.xml", check=False)
+        (evidence / "picker.xml").write_bytes(raw)
+        try:
+            return list(ET.fromstring(raw).iter("node"))
+        except ET.ParseError:
+            print("Waiting for picker hierarchy:", message.decode(errors="replace").strip(), flush=True)
+            time.sleep(1)
+    raise RuntimeError("Android document picker did not expose a complete UI hierarchy")
 
 
 def tap(node):
