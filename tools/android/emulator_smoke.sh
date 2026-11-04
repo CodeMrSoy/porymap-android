@@ -11,7 +11,11 @@ printf 'projects/pokefirered' | adb shell -T run-as "$package" sh -c '"cat > fil
 adb logcat -c
 adb shell am start -W -n "$package/org.qtproject.qt.android.bindings.QtActivity"
 for _ in $(seq 1 180); do
-    if adb exec-out run-as "$package" cat files/android-smoke.result.json > "$evidence/result.json" 2>/dev/null; then
+    # exec-out may return success even when the device-side cat has no file yet.
+    # Wait for a complete JSON result, rather than treating transport success
+    # or a diagnostic string as completion of the editor test.
+    adb exec-out run-as "$package" cat files/android-smoke.result.json > "$evidence/result.json" 2>/dev/null || true
+    if python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$evidence/result.json" >/dev/null 2>&1; then
         break
     fi
     sleep 2
