@@ -5,6 +5,10 @@ collision/elevation, undo/redo and saving. Android-specific code adds a small
 phone toolbar, full-width map/palette/list panels, Pan-mode touch gestures and
 project archive import/export. Desktop builds retain their existing interface.
 
+Use Android version **0.1.2 or later**. Earlier prototype builds have known
+startup or window-sizing problems. Version 0.1.2 defers palette access until a
+project is loaded and keeps Android's window and project toolbar on screen.
+
 ## Install and edit
 
 1. Open the repository's **Actions → Android APK** workflow and its latest
@@ -74,11 +78,19 @@ native editor works on an app-private project copy.
 The workflow compiles and verifies both signed APKs. Host Java tests cover
 binary/map/event round trips, edited-file preservation, path traversal,
 extraction limits, cleanup of failed imports and refusing to overwrite existing
-projects. The x86_64 emulator check opens an upstream `pret/pokefirered` fixture,
+projects. The x86_64 emulator check first launches with no project, exercises
+both palette zoom handlers and checks the window/project-toolbar screen bounds.
+It opens an upstream `pret/pokefirered` fixture,
 paints a tile through the canvas, exercises undo/redo and collision editing,
 saves and reopens it, then exports/imports the project through the Android JNI
 bridge and checks that the edited block survives. Results, screenshots and
 device logs are uploaded as `android-emulator-evidence`.
+Window bounds are checked again after loading and reimporting a project.
+
+Version **0.1.2** passed both APK jobs and the complete emulator check in
+[build 41887240192](https://github.com/CodeMrSoy/porymap-android/actions/runs/41887240192).
+Device screenshots were inspected to confirm that the project toolbar and map
+stay visible on the phone screen. Physical Pixel testing is still required.
 
 Emulator tests do not prove finger/stylus accuracy on a Pixel. The Android file
 picker and real-device gestures need a phone trial. Advanced desktop dialogs,
@@ -88,3 +100,4 @@ an integrated emulator are outside this first APK. Game assets are supplied by
 the user's imported project, not bundled in the APK.
 
 The upstream LGPL license and third-party notices are retained in this fork.
+
