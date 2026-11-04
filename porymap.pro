@@ -340,8 +340,8 @@ android {
     ANDROID_PACKAGE_SOURCE_DIR = $$PWD/android
     ANDROID_MIN_SDK_VERSION = 28
     ANDROID_TARGET_SDK_VERSION = 36
-    ANDROID_VERSION_CODE = 3
-    ANDROID_VERSION_NAME = 0.1.2
+    ANDROID_VERSION_CODE = 4
+    ANDROID_VERSION_NAME = 0.1.3
     QMAKE_LFLAGS += -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384
     SOURCES = src/android/mobile.cpp $$SOURCES
     contains(CONFIG, android_smoke_test) {

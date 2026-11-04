@@ -131,7 +131,20 @@ void MainWindow::initAndroidUi() {
     navigation->setObjectName("androidNavigation");
     navigation->setMovable(false);
     navigation->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    navigation->setStyleSheet(QStringLiteral(
+        "QToolBar { background: #f4f6f8; color: #17212b; }"
+        "QToolButton { color: #17212b; min-height: 42px; padding: 3px; }"
+        "QToolButton:disabled { color: #6b7280; }"
+        "QMenu { background: white; color: #17212b; }"
+        "QMenu::item:selected { background: #1565c0; color: white; }"));
+    auto *importButton = new QToolButton(navigation);
+    importButton->setObjectName("androidImportButton");
+    importButton->setText(tr("Import ZIP"));
+    importButton->setAccessibleName(tr("Import project ZIP"));
+    connect(importButton, &QToolButton::clicked, this, &MainWindow::importAndroidProject);
+    navigation->addWidget(importButton);
     auto *projectButton = new QToolButton(navigation);
+    projectButton->setObjectName("androidProjectButton");
     projectButton->setText(tr("Project"));
     projectButton->setAccessibleName(tr("Project menu"));
     projectButton->setPopupMode(QToolButton::InstantPopup);
@@ -154,6 +167,7 @@ void MainWindow::initAndroidUi() {
     connect(tiles, &QAction::triggered, this, [this] {
         showAndroidPanel(property("androidPanel").toInt() == 2 ? 0 : 2);
     });
+    ui->action_Save_Project->setText(tr("Save"));
     navigation->addAction(ui->action_Save_Project);
     navigation->addAction(undoAction);
     navigation->addAction(redoAction);
@@ -233,7 +247,8 @@ void MainWindow::importAndroidProject() {
     archiveOperation(this, tr("Importing project…"), [=] {
         return invokeArchive("importProject", "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", uri, folder);
     }, [this](const QJsonObject &result) {
-        openProject(result.value("root").toString());
+        const QString root = result.value("root").toString();
+        if (openProject(root)) emit androidProjectImported(root);
     });
 }
 

@@ -10,8 +10,11 @@
 #include <QJniObject>
 #include <QStandardPaths>
 #include <QScreen>
+#include <QToolButton>
+#include <QTimer>
 #include <QtTest>
 #include <stdexcept>
+#include <cmath>
 
 namespace {
 void require(bool value, const char *message) { if (!value) throw std::runtime_error(message); }
@@ -47,18 +50,46 @@ void MainWindow::runAndroidSmokeTest() {
     const QString data = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     QFile request(data + "/android-smoke.request");
     if (!request.open(QIODevice::ReadOnly)) return; // Normal app launch.
+    const QString requested = QString::fromUtf8(request.readAll()).trimmed();
+    request.close();
     QJsonObject result;
     try {
         require(isVisible(), "Main window did not become visible on launch");
         requirePhoneWindowFits(this);
-        require(!isProjectOpen(), "Fresh-launch regression check requires no open project");
+        const bool fromPicker = property("androidImportedFromPicker").toBool();
+        require(fromPicker || !isProjectOpen(), "Fresh-launch regression check requires no open project");
         // These slots used to dereference palette items before project load,
         // causing the app to close immediately during initAndroidUi().
         on_horizontalSlider_MetatileZoom_valueChanged(60);
         on_horizontalSlider_CollisionZoom_valueChanged(60);
-        grab().save(data + "/android-startup.png");
-        const QString path = data + "/" + QString::fromUtf8(request.readAll()).trimmed();
-        require(openProject(path), "Project open failed");
+        if (!fromPicker) grab().save(data + "/android-startup.png");
+        if (requested == "picker") {
+            auto *button = findChild<QToolButton *>("androidImportButton");
+            require(button && button->isVisible() && button->isEnabled(), "Import ZIP button is unavailable before project load");
+            const QPalette colors = button->palette();
+            require(std::abs(qGray(colors.color(QPalette::ButtonText).rgb()) -
+                             qGray(colors.color(QPalette::Button).rgb())) > 80,
+                    "Import ZIP button has unreadable foreground/background contrast");
+            connect(this, &MainWindow::androidProjectImported, this, [this, data](const QString &root) {
+                QFile nextRequest(data + "/android-smoke.request");
+                if (!nextRequest.open(QIODevice::WriteOnly | QIODevice::Truncate)) return;
+                nextRequest.write(QDir(data).relativeFilePath(root).toUtf8());
+                nextRequest.close();
+                setProperty("androidImportedFromPicker", true);
+                QTimer::singleShot(100, this, &MainWindow::runAndroidSmokeTest);
+            }, Qt::SingleShotConnection);
+            const QPoint target = button->mapToGlobal(button->rect().center());
+            const qreal ratio = screen()->devicePixelRatio();
+            QJsonObject targets{{"import_x", qRound(target.x() * ratio)},
+                                {"import_y", qRound(target.y() * ratio)}};
+            QFile targetFile(data + "/android-ui-targets.json");
+            require(targetFile.open(QIODevice::WriteOnly), "Cannot write import touch target");
+            targetFile.write(QJsonDocument(targets).toJson());
+            return; // adb taps the actual button and chooses a ZIP in DocumentsUI.
+        }
+        const QString path = data + "/" + requested;
+        if (!fromPicker) require(openProject(path), "Project open failed");
+        else require(editor->project->root == path, "System picker import opened the wrong project");
         require(userSetMap("PalletTown"), "PalletTown did not load");
         requirePhoneWindowFits(this);
         showAndroidPanel(0);
@@ -75,7 +106,22 @@ void MainWindow::runAndroidSmokeTest() {
         QTest::qWait(250);
         QPoint point = ui->graphicsView_Map->mapFromScene(QPointF(168, 168));
         require(ui->graphicsView_Map->viewport()->rect().contains(point), "Paint location is off screen");
-        QTest::mouseClick(ui->graphicsView_Map->viewport(), Qt::LeftButton, Qt::NoModifier, point);
+        if (fromPicker) {
+            const QPoint global = ui->graphicsView_Map->viewport()->mapToGlobal(point);
+            require(screen()->availableGeometry().contains(global), "Paint touch target is outside the phone screen");
+            const qreal ratio = screen()->devicePixelRatio();
+            QFile targetFile(data + "/android-paint-target.json");
+            require(targetFile.open(QIODevice::WriteOnly), "Cannot write canvas touch target");
+            targetFile.write(QJsonDocument(QJsonObject{
+                {"x", qRound(global.x() * ratio)}, {"y", qRound(global.y() * ratio)}}).toJson());
+            targetFile.close();
+            for (int attempt = 0; attempt < 150 && !QFile::exists(data + "/android-touch.done"); ++attempt)
+                QTest::qWait(200);
+            require(QFile::exists(data + "/android-touch.done"), "Android canvas touch was not delivered");
+            QTest::qWait(150);
+        } else {
+            QTest::mouseClick(ui->graphicsView_Map->viewport(), Qt::LeftButton, Qt::NoModifier, point);
+        }
         Block painted; layout->getBlock(10, 10, &painted);
         require(painted.metatileId() == tile, "Canvas mouse/touch painting did not change tile");
         layout->editHistory.undo();
@@ -109,7 +155,9 @@ void MainWindow::runAndroidSmokeTest() {
         ui->graphicsView_Map->QGraphicsView::centerOn(168, 168);
         grab().save(data + "/android-smoke.png");
         result.insert("status", "passed");
-        result.insert("checks", "load, canvas paint, undo, redo, collision, save, reopen, JNI ZIP export/import");
+        result.insert("checks", fromPicker
+            ? "Android touch, system ZIP picker import, load, canvas paint, undo, redo, collision, save, reopen, JNI ZIP export/import"
+            : "load, canvas paint, undo, redo, collision, save, reopen, JNI ZIP export/import");
     } catch (const std::exception &error) {
         result.insert("status", "failed"); result.insert("error", QString::fromUtf8(error.what()));
     }

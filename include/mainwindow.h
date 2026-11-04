@@ -313,6 +313,9 @@ public:
 signals:
     void mapOpened(Map*);
     void layoutOpened(Layout*);
+#ifdef Q_OS_ANDROID
+    void androidProjectImported(const QString &root);
+#endif
 
 private:
 #ifdef Q_OS_ANDROID

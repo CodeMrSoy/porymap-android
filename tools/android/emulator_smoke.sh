@@ -4,13 +4,20 @@ package=org.codemrsoy.porymap
 evidence=build/emulator-evidence
 mkdir -p "$evidence"
 adb install -r artifacts/porymap-android-x86_64-debug.apk
-adb shell run-as "$package" mkdir -p files/projects
-tar -C build/fixture -cf build/fixture.tar pokefirered
-adb shell -T run-as "$package" tar -xf - -C files/projects < build/fixture.tar
-printf 'projects/pokefirered' | adb shell -T run-as "$package" sh -c '"cat > files/android-smoke.request"'
+adb shell run-as "$package" mkdir -p files
+python3 -m zipfile -c build/porymap-ui-fixture.zip build/fixture/pokefirered
+adb shell mkdir -p /sdcard/Download
+adb push build/porymap-ui-fixture.zip /sdcard/Download/porymap-ui-fixture.zip
+adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Download/porymap-ui-fixture.zip
+printf 'picker' | adb shell -T run-as "$package" sh -c '"cat > files/android-smoke.request"'
+# Reproduce the system-dark-mode palette from the reported Pixel screenshot.
+adb shell cmd uimode night yes
 adb logcat -c
 adb shell am start -W -n "$package/org.qtproject.qt.android.bindings.QtActivity"
+picker_status=0
+python3 tools/android/picker_smoke.py "$evidence" || picker_status=$?
 for attempt in $(seq 1 180); do
+    if [ "$picker_status" -ne 0 ]; then break; fi
     # exec-out may return success even when the device-side cat has no file yet.
     # Wait for a complete JSON result, rather than treating transport success
     # or a diagnostic string as completion of the editor test.
