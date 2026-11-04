@@ -9,11 +9,22 @@
 #include <QJsonObject>
 #include <QJniObject>
 #include <QStandardPaths>
+#include <QScreen>
 #include <QtTest>
 #include <stdexcept>
 
 namespace {
 void require(bool value, const char *message) { if (!value) throw std::runtime_error(message); }
+void requirePhoneWindowFits(MainWindow *window) {
+    QTest::qWait(100); // Apply pending layout/resize requests after project load.
+    const QRect available = window->screen()->availableGeometry();
+    require(window->width() <= available.width() && window->height() <= available.height(),
+            "Editor window exceeds phone screen bounds");
+    auto *navigation = window->findChild<QWidget *>("androidNavigation");
+    require(navigation && navigation->isVisible(), "Project navigation is hidden");
+    const QRect navRect(navigation->mapToGlobal(QPoint()), navigation->size());
+    require(available.contains(navRect), "Project navigation is outside the phone screen");
+}
 QByteArray read(const QString &path) {
     QFile file(path); require(file.open(QIODevice::ReadOnly), "Cannot read fixture file");
     return file.readAll();
@@ -39,6 +50,7 @@ void MainWindow::runAndroidSmokeTest() {
     QJsonObject result;
     try {
         require(isVisible(), "Main window did not become visible on launch");
+        requirePhoneWindowFits(this);
         require(!isProjectOpen(), "Fresh-launch regression check requires no open project");
         // These slots used to dereference palette items before project load,
         // causing the app to close immediately during initAndroidUi().
@@ -48,6 +60,7 @@ void MainWindow::runAndroidSmokeTest() {
         const QString path = data + "/" + QString::fromUtf8(request.readAll()).trimmed();
         require(openProject(path), "Project open failed");
         require(userSetMap("PalletTown"), "PalletTown did not load");
+        requirePhoneWindowFits(this);
         showAndroidPanel(0);
         on_mainTabBar_tabBarClicked(MainTab::Map);
         on_mapViewTab_tabBarClicked(MapViewTab::Metatiles);
@@ -89,6 +102,7 @@ void MainWindow::runAndroidSmokeTest() {
         require(archive("exportProject", path, zip).value("ok").toBool(), "Project export failed");
         auto imported = archive("importProject", zip, data + "/smoke-imported");
         require(openProject(imported.value("root").toString()) && userSetMap("PalletTown"), "ZIP reimport did not open");
+        requirePhoneWindowFits(this);
         editor->layout->getBlock(10, 10, &reopened);
         require(reopened == changed, "ZIP round trip lost map edits");
         showAndroidPanel(0);

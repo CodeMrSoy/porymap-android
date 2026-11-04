@@ -15,6 +15,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLineF>
+#include <QLayout>
 #include <QMenu>
 #include <QMessageBox>
 #include <QProgressDialog>
@@ -96,6 +97,17 @@ void MainWindow::showAndroidPanel(int panel) {
 
 void MainWindow::initAndroidUi() {
     setMinimumSize(0, 0);
+    // Desktop tabs contain wide hidden pages. Their minimum size hints must
+    // not grow the Android window beyond the actual phone surface.
+    layout()->setSizeConstraint(QLayout::SetNoConstraint);
+    ui->centralWidget->layout()->setSizeConstraint(QLayout::SetNoConstraint);
+    for (QWidget *panel : QList<QWidget *>{ui->mapListContainer, ui->mapViewTab,
+             ui->stackedWidget_MapEvents, ui->frame_9, ui->frame_Main}) {
+        panel->setMinimumSize(0, 0);
+        auto policy = panel->sizePolicy();
+        policy.setHorizontalPolicy(QSizePolicy::Ignored);
+        panel->setSizePolicy(policy);
+    }
     ui->centralWidget->layout()->setContentsMargins(0, 0, 0, 0);
     ui->mainTabBar->hide();
     ui->frame_mapTools->hide();
@@ -194,6 +206,7 @@ void MainWindow::initAndroidUi() {
     porymapConfig.shownInGameReloadMessage = true;
     showAndroidPanel(isProjectOpen() ? 0 : 1);
     resize(QGuiApplication::primaryScreen()->availableGeometry().size());
+    move(QGuiApplication::primaryScreen()->availableGeometry().topLeft());
 #ifdef PORYMAP_ANDROID_TESTS
     QTimer::singleShot(1500, this, &MainWindow::runAndroidSmokeTest);
 #endif

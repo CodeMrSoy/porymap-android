@@ -97,11 +97,13 @@ void MainWindow::initialize() {
     if (porymapConfig.checkForUpdates)
         this->checkForUpdates(false);
 
-    this->restoreWindowState();
 #ifdef Q_OS_ANDROID
     this->initAndroidUi();
-#endif
+    this->showMaximized();
+#else
+    this->restoreWindowState();
     this->show();
+#endif
 }
 
 MainWindow::~MainWindow()
