@@ -38,6 +38,13 @@ void MainWindow::runAndroidSmokeTest() {
     if (!request.open(QIODevice::ReadOnly)) return; // Normal app launch.
     QJsonObject result;
     try {
+        require(isVisible(), "Main window did not become visible on launch");
+        require(!isProjectOpen(), "Fresh-launch regression check requires no open project");
+        // These slots used to dereference palette items before project load,
+        // causing the app to close immediately during initAndroidUi().
+        on_horizontalSlider_MetatileZoom_valueChanged(60);
+        on_horizontalSlider_CollisionZoom_valueChanged(60);
+        grab().save(data + "/android-startup.png");
         const QString path = data + "/" + QString::fromUtf8(request.readAll()).trimmed();
         require(openProject(path), "Project open failed");
         require(userSetMap("PalletTown"), "PalletTown did not load");

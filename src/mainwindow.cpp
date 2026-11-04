@@ -3152,6 +3152,10 @@ void MainWindow::reloadScriptEngine() {
 
 void MainWindow::on_horizontalSlider_MetatileZoom_valueChanged(int value) {
     porymapConfig.metatilesZoom = value;
+    // The phone toolbar sets its initial zoom before a project creates the
+    // palette items. refreshMetatileViews() reapplies this value after load.
+    if (!editor || !editor->metatile_selector_item || !editor->selected_border_metatiles_item)
+        return;
     double scale = pow(3.0, static_cast<double>(value - 30) / 30.0);
 
     QTransform transform;
@@ -3177,6 +3181,8 @@ void MainWindow::on_horizontalSlider_MetatileZoom_valueChanged(int value) {
 
 void MainWindow::on_horizontalSlider_CollisionZoom_valueChanged(int value) {
     porymapConfig.collisionZoom = value;
+    if (!editor || !editor->movement_permissions_selector_item)
+        return;
     double scale = pow(3.0, static_cast<double>(value - 30) / 30.0);
 
     QTransform transform;
