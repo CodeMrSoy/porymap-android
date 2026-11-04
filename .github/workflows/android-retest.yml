@@ -69,14 +69,19 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      - name: Resolve the published Android 17 emulator image
+        id: image
+        run: |
+          sdkmanager --list --channel=3 > build/android-sdk-packages.txt
+          python3 tools/android/select_system_image.py < build/android-sdk-packages.txt
       - name: Load, paint, undo, save and reopen existing APK
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 36
-          system-image-api-level: 37
+          system-image-api-level: ${{ steps.image.outputs.api }}
           channel: canary
           arch: x86_64
-          target: google_apis
+          target: ${{ steps.image.outputs.target }}
           profile: pixel_2
           disk-size: 2048M
           disable-animations: true
