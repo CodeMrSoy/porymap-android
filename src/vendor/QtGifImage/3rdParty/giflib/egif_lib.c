@@ -22,6 +22,16 @@ two modules will be linked.  Preserve this property!
 #endif /* _WIN32 */
 #include <sys/stat.h>
 
+/* Android exposes the POSIX permission names, without these legacy aliases. */
+#ifdef __ANDROID__
+#ifndef S_IREAD
+#define S_IREAD S_IRUSR
+#endif
+#ifndef S_IWRITE
+#define S_IWRITE S_IWUSR
+#endif
+#endif
+
 #include "gif_lib.h"
 #include "gif_lib_private.h"
 
@@ -1145,3 +1155,4 @@ EGifSpew(GifFileType *GifFileOut)
 }
 
 /* end */
+
