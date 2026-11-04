@@ -6,7 +6,11 @@
 
 int main(int argc, char *argv[])
 {
+#ifdef Q_OS_ANDROID
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+#else
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::Round);
+#endif
     QCoreApplication::setAttribute(Qt::AA_UseStyleSheetPropagationInWidgetStyles, true);
 
     QApplication a(argc, argv);
