@@ -343,10 +343,10 @@ android {
     ANDROID_VERSION_CODE = 1
     ANDROID_VERSION_NAME = 0.1.0
     QMAKE_LFLAGS += -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384
-    SOURCES += src/android/mobile.cpp
+    SOURCES = src/android/mobile.cpp $$SOURCES
     contains(CONFIG, android_smoke_test) {
         DEFINES += PORYMAP_ANDROID_TESTS
         QT += testlib
-        SOURCES += tests/android/smoke.cpp
+        SOURCES = tests/android/smoke.cpp $$SOURCES
     }
 }
