@@ -68,7 +68,7 @@ jobs:
       - name: Load, paint, undo, save and reopen existing APK
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: 37
           arch: x86_64
           target: google_apis
           profile: pixel_2
