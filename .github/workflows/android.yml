@@ -76,8 +76,11 @@ jobs:
           config=''
           if [ '${{ matrix.abi }}' = x86_64 ]; then config='CONFIG+=android_smoke_test'; fi
           qmake ../../porymap.pro CONFIG+=release ANDROID_ABIS=${{ matrix.abi }} $config
-          make -j2
+          make -j4
           make install INSTALL_ROOT="$PWD/android-build"
+      - name: Package Android APK
+        working-directory: build/android
+        run: |
           androiddeployqt --input android-porymap-deployment-settings.json --output android-build --android-platform android-36 --jdk "$JAVA_HOME" --gradle --debug
       - name: Collect and verify the signed APK
         run: |

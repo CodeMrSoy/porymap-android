@@ -51,7 +51,7 @@ void MainWindow::runAndroidSmokeTest() {
         Block original; require(layout->getBlock(10, 10, &original), "Missing fixture block");
         const uint16_t tile = original.metatileId() == 0x10 ? 0x115 : 0x10;
         require(editor->metatile_selector_item->select(tile), "Tile selection failed");
-        ui->graphicsView_Map->centerOn(10 * 16 + 8, 10 * 16 + 8);
+        ui->graphicsView_Map->QGraphicsView::centerOn(10 * 16 + 8, 10 * 16 + 8);
         QTest::qWait(250);
         QPoint point = ui->graphicsView_Map->mapFromScene(QPointF(168, 168));
         require(ui->graphicsView_Map->viewport()->rect().contains(point), "Paint location is off screen");
@@ -85,7 +85,7 @@ void MainWindow::runAndroidSmokeTest() {
         editor->layout->getBlock(10, 10, &reopened);
         require(reopened == changed, "ZIP round trip lost map edits");
         showAndroidPanel(0);
-        ui->graphicsView_Map->centerOn(168, 168);
+        ui->graphicsView_Map->QGraphicsView::centerOn(168, 168);
         grab().save(data + "/android-smoke.png");
         result.insert("status", "passed");
         result.insert("checks", "load, canvas paint, undo, redo, collision, save, reopen, JNI ZIP export/import");
