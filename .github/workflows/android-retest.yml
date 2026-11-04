@@ -1,0 +1,86 @@
+name: Android APK retest
+
+on:
+  push:
+    branches: ['feature/android-*']
+    paths: ['tools/android/emulator_smoke.sh', '.github/workflows/android-retest.yml']
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: 'Android APK run to retest (empty uses latest completed build with an x86_64 artifact)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  emulator:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Select an existing APK build
+        id: build
+        uses: actions/github-script@v7
+        env:
+          REQUESTED_RUN: ${{ inputs.build_run_id }}
+        with:
+          script: |
+            const repository = context.repo;
+            let id = process.env.REQUESTED_RUN;
+            if (!id) {
+              const {data} = await github.rest.actions.listWorkflowRuns({
+                ...repository, workflow_id: 'android.yml',
+                branch: context.ref.replace('refs/heads/', ''), status: 'completed', per_page: 30
+              });
+              for (const run of data.workflow_runs) {
+                const artifacts = await github.rest.actions.listWorkflowRunArtifacts({...repository, run_id: run.id});
+                if (artifacts.data.artifacts.some(a => a.name === 'porymap-android-x86_64' && !a.expired)) {
+                  id = run.id; break;
+                }
+              }
+            }
+            if (!id || !/^\d+$/.test(String(id))) throw new Error('No existing x86_64 APK build found');
+            core.info(`Retesting APK from build run ${id}; test scripts come from ${context.sha}`);
+            core.setOutput('run_id', id);
+      - uses: actions/download-artifact@v4
+        with:
+          name: porymap-android-x86_64
+          path: artifacts
+          run-id: ${{ steps.build.outputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Prepare fixture and emulator acceleration
+        run: |
+          git clone --depth 1 https://github.com/pret/pokefirered.git build/fixture/pokefirered
+          printf 'base_game_version=pokefirered\nforced_major_version=6\n' > build/fixture/pokefirered/porymap.project.cfg
+          printf 'recent_map_or_layout=PalletTown\n' > build/fixture/pokefirered/porymap.user.cfg
+          rm -rf build/fixture/pokefirered/.git
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Load, paint, undo, save and reopen existing APK
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_7
+          disable-animations: true
+          script: bash tools/android/emulator_smoke.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-retest-evidence
+          path: build/emulator-evidence/
+          if-no-files-found: warn
+          retention-days: 30
