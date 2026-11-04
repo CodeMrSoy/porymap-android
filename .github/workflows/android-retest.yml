@@ -3,7 +3,7 @@ name: Android APK retest
 on:
   push:
     branches: ['feature/android-*']
-    paths: ['.github/workflows/android-retest.yml']
+    paths: ['.github/workflows/android-retest.yml', 'tools/android/picker_smoke.py', 'tools/android/emulator_smoke.sh']
   workflow_dispatch:
     inputs:
       build_run_id:
@@ -83,7 +83,7 @@ jobs:
           arch: x86_64
           target: ${{ steps.image.outputs.target }}
           profile: pixel_2
-          disk-size: 2048M
+          disk-size: 4096M
           disable-animations: true
           script: bash tools/android/emulator_smoke.sh
       - uses: actions/upload-artifact@v4

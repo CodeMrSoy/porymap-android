@@ -3,13 +3,29 @@ set -euo pipefail
 package=org.codemrsoy.porymap
 evidence=build/emulator-evidence
 mkdir -p "$evidence"
+collect_evidence() {
+    adb logcat -d > "$evidence/logcat.txt" || true
+    adb exec-out run-as "$package" cat files/porymap.log > "$evidence/porymap.log" || true
+    adb exec-out screencap -p > "$evidence/device.png" || true
+    adb exec-out run-as "$package" cat files/android-smoke.png > "$evidence/editor.png" || true
+    adb exec-out run-as "$package" cat files/android-startup.png > "$evidence/startup.png" || true
+}
+trap collect_evidence EXIT
 adb shell getprop ro.build.version.release > "$evidence/android-version.txt"
 adb shell getprop ro.build.version.sdk >> "$evidence/android-version.txt"
 cat "$evidence/android-version.txt"
 adb install -r artifacts/porymap-android-x86_64-debug.apk
 adb shell run-as "$package" mkdir -p files
 python3 -m zipfile -c build/porymap-ui-fixture.zip build/fixture/pokefirered
-adb shell mkdir -p /sdcard/Download
+adb shell input keyevent KEYCODE_WAKEUP
+adb shell wm dismiss-keyguard
+adb shell input keyevent KEYCODE_MENU
+storage_ready=0
+for storage_attempt in $(seq 1 60); do
+    if adb shell mkdir -p /sdcard/Download 2>/dev/null; then storage_ready=1; break; fi
+    sleep 2
+done
+if [ "$storage_ready" -ne 1 ]; then echo 'Emulator shared storage did not mount'; exit 1; fi
 adb push build/porymap-ui-fixture.zip /sdcard/Download/porymap-ui-fixture.zip
 adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Download/porymap-ui-fixture.zip
 printf 'picker' | adb shell -T run-as "$package" sh -c '"cat > files/android-smoke.request"'
@@ -34,11 +50,6 @@ for attempt in $(seq 1 180); do
     fi
     sleep 2
 done
-adb logcat -d > "$evidence/logcat.txt"
-adb exec-out run-as "$package" cat files/porymap.log > "$evidence/porymap.log" || true
-adb exec-out screencap -p > "$evidence/device.png"
-adb exec-out run-as "$package" cat files/android-smoke.png > "$evidence/editor.png" || true
-adb exec-out run-as "$package" cat files/android-startup.png > "$evidence/startup.png" || true
 test -s "$evidence/result.json"
 python3 - "$evidence/result.json" <<'PY'
 import json, sys
