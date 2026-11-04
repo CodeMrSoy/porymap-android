@@ -1,5 +1,17 @@
 # Porymap
 
+## Android prototype
+
+This fork adds a native Qt/C++ Android build, targeting ARM64 phones such as the
+Pixel 10 Pro. The original desktop editor remains available. Android setup,
+project ZIP import/export, touch controls and test status are documented in
+[ANDROID.md](ANDROID.md).
+
+APK builds are available as artifacts in this repository's
+[Android APK workflow](https://github.com/CodeMrSoy/porymap-android/actions/workflows/android.yml).
+Choose `porymap-android-arm64-v8a` for your phone. The x86_64 artifact is for the
+emulator test. These are development builds, not a Play Store release.
+
 [![Actions Status](https://github.com/huderlem/porymap/workflows/Build%20Porymap/badge.svg)](https://github.com/huderlem/porymap/actions)
 
 A map editor for the Pokémon generation 3 decompilation projects ([pokeruby][pokeruby], [pokeemerald][pokeemerald], and [pokefirered][pokefirered]).

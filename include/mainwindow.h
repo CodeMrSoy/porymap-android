@@ -315,6 +315,16 @@ signals:
     void layoutOpened(Layout*);
 
 private:
+#ifdef Q_OS_ANDROID
+    void initAndroidUi();
+    void chooseAndroidProject();
+    void importAndroidProject();
+    void exportAndroidProject();
+    void showAndroidPanel(int panel);
+#ifdef PORYMAP_ANDROID_TESTS
+    void runAndroidSmokeTest();
+#endif
+#endif
     QLabel *label_MapRulerStatus = nullptr;
     QPointer<TilesetEditor> tilesetEditor = nullptr;
     QPointer<RegionMapEditor> regionMapEditor = nullptr;

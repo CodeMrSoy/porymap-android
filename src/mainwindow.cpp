@@ -65,8 +65,13 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow),
     isProgrammaticEventTabChange(false)
 {
+#ifdef Q_OS_ANDROID
+    QCoreApplication::setOrganizationName("CodeMrSoy");
+    QCoreApplication::setApplicationName("Porymap Android");
+#else
     QCoreApplication::setOrganizationName("pret");
     QCoreApplication::setApplicationName("porymap");
+#endif
     QCoreApplication::setApplicationVersion(PORYMAP_VERSION);
     QApplication::setApplicationDisplayName(QApplication::applicationName());
     QApplication::setWindowIcon(QIcon(":/icons/porymap-icon-2.ico"));
@@ -93,6 +98,9 @@ void MainWindow::initialize() {
         this->checkForUpdates(false);
 
     this->restoreWindowState();
+#ifdef Q_OS_ANDROID
+    this->initAndroidUi();
+#endif
     this->show();
 }
 
@@ -139,7 +147,8 @@ void MainWindow::setWindowDisabled(bool disabled) {
             ui->actionCheck_for_Updates,
         };
         auto allowedToDisable = [objectsAlwaysEnabled](QObject *object) {
-            return !(object->objectName().isEmpty() || object->objectName().startsWith(QStringLiteral("_q_")) || objectsAlwaysEnabled.contains(object));
+            return !(object->objectName().isEmpty() || object->objectName().startsWith(QStringLiteral("_q_"))
+                     || object->objectName() == QStringLiteral("androidNavigation") || objectsAlwaysEnabled.contains(object));
         };
 
         for (auto action : findChildren<QAction *>()) {
@@ -1060,9 +1069,13 @@ void MainWindow::showFileWatcherWarning() {
 }
 
 void MainWindow::on_action_Open_Project_triggered() {
+#ifdef Q_OS_ANDROID
+    chooseAndroidProject();
+#else
     QString dir = FileDialog::getExistingDirectory(this, QStringLiteral("Choose Project Folder"));
     if (!dir.isEmpty())
         openProject(dir);
+#endif
 }
 
 void MainWindow::on_action_Reload_Project_triggered() {

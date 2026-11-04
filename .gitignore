@@ -5,11 +5,16 @@ porymap.pro.user
 *.o
 *.DS_Store
 porymap.app*
-porymap
+/porymap
 porymap.cfg
 porymap.log
 build/
 venv/
+*.apk
+*.aab
+*.keystore
+android-build/
+__pycache__/
 
 # Qt generated files
 ui_*.h

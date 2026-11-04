@@ -1,0 +1,117 @@
+name: Android APK
+
+on:
+  push:
+    branches: [master, 'feature/android-*']
+    paths-ignore: ['docs/**', 'docsrc/**', '*.md']
+  pull_request:
+    paths-ignore: ['docs/**', 'docsrc/**', '*.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm64-v8a
+            qt_arch: android_arm64_v8a
+          - abi: x86_64
+            qt_arch: android_x86_64
+    env:
+      ANDROID_NDK_ROOT: /usr/local/lib/android/sdk/ndk/27.2.12479018
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Test project ZIP round trips and extraction boundaries
+        run: |
+          mkdir -p build/java-tests
+          javac -d build/java-tests android/src/org/codemrsoy/porymap/ProjectArchive.java tests/android/ProjectArchiveTest.java
+          java -cp build/java-tests org.codemrsoy.porymap.ProjectArchiveTest
+      - name: Android SDK and NDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;27.2.12479018'
+      - name: Retain development signing identity for updates
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: porymap-debug-signing-${{ matrix.abi }}-v1
+      - name: Create development key if needed
+        run: |
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then
+            keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -dname 'CN=Android Debug,O=Android,C=US' -keyalg RSA -keysize 2048 -validity 10000
+          fi
+      - name: Qt with Android 16 and 16 KB page support
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.10.2'
+          target: android
+          arch: ${{ matrix.qt_arch }}
+          cache: true
+          extra: --autodesktop
+      - name: Configure and compile native Porymap
+        run: |
+          mkdir -p build/android
+          cd build/android
+          config=''
+          if [ '${{ matrix.abi }}' = x86_64 ]; then config='CONFIG+=android_smoke_test'; fi
+          qmake ../../porymap.pro CONFIG+=release ANDROID_ABIS=${{ matrix.abi }} $config
+          make -j2
+          make install INSTALL_ROOT="$PWD/android-build"
+          androiddeployqt --input android-porymap-deployment-settings.json --output android-build --android-platform android-36 --jdk "$JAVA_HOME" --gradle --debug
+      - name: Collect and verify the signed APK
+        run: |
+          mkdir -p artifacts
+          apk=$(find build/android/android-build -name '*debug.apk' | head -n 1)
+          test -n "$apk"
+          cp "$apk" artifacts/porymap-android-${{ matrix.abi }}-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$apk"
+          python3 tools/android/check_apk.py "$apk"
+          sha256sum artifacts/*.apk > artifacts/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: porymap-android-${{ matrix.abi }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Enable emulator acceleration
+        if: matrix.abi == 'x86_64'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Prepare an upstream FireRed fixture
+        if: matrix.abi == 'x86_64'
+        run: |
+          git clone --depth 1 https://github.com/pret/pokefirered.git build/fixture/pokefirered
+          printf 'base_game_version=pokefirered\nforced_major_version=6\n' > build/fixture/pokefirered/porymap.project.cfg
+          printf 'recent_map_or_layout=PalletTown\n' > build/fixture/pokefirered/porymap.user.cfg
+          rm -rf build/fixture/pokefirered/.git
+      - name: Emulator load, edit, undo, save and reopen
+        if: matrix.abi == 'x86_64'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_7
+          disable-animations: true
+          script: bash tools/android/emulator_smoke.sh
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.abi == 'x86_64'
+        with:
+          name: android-emulator-evidence
+          path: build/emulator-evidence/
+          if-no-files-found: warn
