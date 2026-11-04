@@ -5,9 +5,10 @@ collision/elevation, undo/redo and saving. Android-specific code adds a small
 phone toolbar, full-width map/palette/list panels, Pan-mode touch gestures and
 project archive import/export. Desktop builds retain their existing interface.
 
-Use Android version **0.1.2 or later**. Earlier prototype builds have known
-startup or window-sizing problems. Version 0.1.2 defers palette access until a
-project is loaded and keeps Android's window and project toolbar on screen.
+Use Android version **0.1.3 or later**. It includes an always-visible **Import
+ZIP** button, readable toolbar colors when Android uses dark mode, and Android's
+native display-density scaling. It also retains the startup and screen-sizing
+fixes. Map editing controls become available once a project has loaded.
 
 ## Install and edit
 
@@ -19,8 +20,9 @@ project is loaded and keeps Android's window and project toolbar on screen.
    `data`, `graphics`, `include`, `src`, `constants`, project config files and
    other source folders. A `.gba` ROM alone cannot be opened. GitHub's
    **Download ZIP** for the desired game branch is another option.
-3. Copy the ZIP to your phone. In Porymap Android choose **Project → Import
-   project ZIP**. If prompted, select the project's base game, e.g. `pokefirered`.
+3. Copy the ZIP to your phone. Tap **Import ZIP** at the top left and select
+   your game-source ZIP in Android's file picker. If prompted, select the
+   project's base game, e.g. `pokefirered`.
 4. Tap **Maps**, then a map name. **Palette** opens/closes the full-width tile
    selector. Pick a tile and return to the canvas with **Palette**.
 5. Use **Paint**, **Fill**, or **Pick** with one finger. Switch to **Pan** for
@@ -28,7 +30,7 @@ project is loaded and keeps Android's window and project toolbar on screen.
 6. **Collision** switches to collision/elevation editing and opens its selector.
    Tap **Palette** to return to the canvas. Undo/redo use the native editor's
    history. Toolbar actions that do not fit are in its overflow menu.
-7. **Save All** saves to the phone's imported copy. **Project → Export project
+7. **Save** saves to the phone's imported copy. **Project → Export project
    ZIP** saves and exports that copy. Extract it on your PC and review its changes
    on the intended Git branch before using it in desktop Porymap or building a ROM.
 
@@ -49,7 +51,7 @@ edits into the authoring source before running that generator again.
 
 ## Build
 
-The Android APK workflow uses Qt **6.10.2**, JDK **17**, Android SDK **36**,
+The Android APK workflow uses Qt **6.10.2**, JDK **21**, Android SDK **36**,
 NDK **27.2.12479018** and minimum Android **9 / API 28**. Separate ARM64 and
 x86_64 APKs are produced. Qt's libraries and the application are checked for
 16 KiB ELF load-segment alignment, suitable for modern Android memory pages.
@@ -78,22 +80,27 @@ native editor works on an app-private project copy.
 The workflow compiles and verifies both signed APKs. Host Java tests cover
 binary/map/event round trips, edited-file preservation, path traversal,
 extraction limits, cleanup of failed imports and refusing to overwrite existing
-projects. The x86_64 emulator check first launches with no project, exercises
-both palette zoom handlers and checks the window/project-toolbar screen bounds.
-It opens an upstream `pret/pokefirered` fixture,
-paints a tile through the canvas, exercises undo/redo and collision editing,
+projects. The x86_64 emulator uses Android **17 / API 37** with system dark mode
+enabled. It launches with no project, checks palette zoom, screen bounds and
+import-button contrast/enabled state. Android input taps **Import ZIP**, opens
+the real system picker and selects an upstream `pret/pokefirered` source ZIP.
+After import, another Android input tap paints a tile on the canvas. The check
+then exercises undo/redo and collision editing,
 saves and reopens it, then exports/imports the project through the Android JNI
 bridge and checks that the edited block survives. Results, screenshots and
 device logs are uploaded as `android-emulator-evidence`.
 Window bounds are checked again after loading and reimporting a project.
 
-Version **0.1.2** passed both APK jobs and the complete emulator check in
-[build 41887240192](https://github.com/CodeMrSoy/porymap-android/actions/runs/41887240192).
-Device screenshots were inspected to confirm that the project toolbar and map
-stay visible on the phone screen. Physical Pixel testing is still required.
+Version **0.1.3** APKs were produced in
+[build 41910124945](https://github.com/CodeMrSoy/porymap-android/actions/runs/41910124945).
+The complete Android 17 touch/picker/import/edit test passed in
+[retest 41912009147](https://github.com/CodeMrSoy/porymap-android/actions/runs/41912009147).
+Screenshots of the readable toolbar, system picker and loaded map were inspected.
+Emulator tests run separately from compiler jobs with 4 GiB RAM/data storage;
+the workflow pins current SDK tools and checks the Android 17 AVD target before boot.
 
-Emulator tests do not prove finger/stylus accuracy on a Pixel. The Android file
-picker and real-device gestures need a phone trial. Advanced desktop dialogs,
+Emulator tests do not prove finger/stylus accuracy on a physical Pixel.
+Real-device multitouch gestures still need a phone trial. Advanced desktop dialogs,
 event editing and tileset/region-map editing retain their desktop layouts and
 may need more phone-specific work. Git synchronization, ROM compilation and
 an integrated emulator are outside this first APK. Game assets are supplied by
