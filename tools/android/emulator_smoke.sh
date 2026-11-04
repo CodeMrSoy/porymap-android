@@ -21,6 +21,7 @@ for _ in $(seq 1 180); do
     sleep 2
 done
 adb logcat -d > "$evidence/logcat.txt"
+adb exec-out run-as "$package" cat files/porymap.log > "$evidence/porymap.log" || true
 adb exec-out screencap -p > "$evidence/device.png"
 adb exec-out run-as "$package" cat files/android-smoke.png > "$evidence/editor.png" || true
 test -s "$evidence/result.json"
