@@ -1,6 +1,9 @@
 name: Android APK retest
 
 on:
+  push:
+    branches: ['feature/android-*']
+    paths: ['.github/workflows/android-retest.yml']
   workflow_dispatch:
     inputs:
       build_run_id:
@@ -14,16 +17,17 @@ permissions:
 
 jobs:
   emulator:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
       - uses: android-actions/setup-android@v3
         with:
+          cmdline-tools-version: '15859902'
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
       - name: Select an existing APK build
@@ -68,7 +72,9 @@ jobs:
       - name: Load, paint, undo, save and reopen existing APK
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 37
+          api-level: 36
+          system-image-api-level: 37
+          channel: canary
           arch: x86_64
           target: google_apis
           profile: pixel_2

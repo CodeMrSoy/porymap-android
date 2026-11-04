@@ -32,9 +32,10 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
       - uses: android-actions/setup-android@v3
         with:
+          cmdline-tools-version: '15859902'
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
       - name: Test project ZIP round trips and extraction boundaries
@@ -117,7 +118,9 @@ jobs:
         if: matrix.abi == 'x86_64'
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 37
+          api-level: 36
+          system-image-api-level: 37
+          channel: canary
           arch: x86_64
           target: google_apis
           profile: pixel_2

@@ -3,6 +3,9 @@ set -euo pipefail
 package=org.codemrsoy.porymap
 evidence=build/emulator-evidence
 mkdir -p "$evidence"
+adb shell getprop ro.build.version.release > "$evidence/android-version.txt"
+adb shell getprop ro.build.version.sdk >> "$evidence/android-version.txt"
+cat "$evidence/android-version.txt"
 adb install -r artifacts/porymap-android-x86_64-debug.apk
 adb shell run-as "$package" mkdir -p files
 python3 -m zipfile -c build/porymap-ui-fixture.zip build/fixture/pokefirered
