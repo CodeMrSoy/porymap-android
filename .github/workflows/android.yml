@@ -81,7 +81,9 @@ jobs:
       - name: Package Android APK
         working-directory: build/android
         run: |
-          androiddeployqt --input android-porymap-deployment-settings.json --output android-build --android-platform android-36 --jdk "$JAVA_HOME" --gradle --debug
+          deployqt=$(find "$QT_HOST_PATH" "$QT_ROOT_DIR" -type f -name androiddeployqt | head -n 1)
+          test -n "$deployqt"
+          "$deployqt" --input android-porymap-deployment-settings.json --output android-build --android-platform android-36 --jdk "$JAVA_HOME"
       - name: Collect and verify the signed APK
         run: |
           mkdir -p artifacts

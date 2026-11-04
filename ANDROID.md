@@ -59,9 +59,9 @@ cd build/android
 qmake ../../porymap.pro CONFIG+=release ANDROID_ABIS=arm64-v8a
 make -j2
 make install INSTALL_ROOT="$PWD/android-build"
-androiddeployqt --input android-porymap-deployment-settings.json \
+"$QT_HOST_PATH/bin/androiddeployqt" --input android-porymap-deployment-settings.json \
   --output android-build --android-platform android-36 \
-  --jdk "$JAVA_HOME" --gradle --debug
+  --jdk "$JAVA_HOME"
 ```
 
 Qt's normal Android Gradle template is used. The custom manifest and Java
