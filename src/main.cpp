@@ -16,20 +16,22 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
     a.setStyle("fusion");
 #ifdef Q_OS_ANDROID
-    // The Android activity uses a light surface. An inherited system dark
-    // palette otherwise makes enabled toolbar labels white on that surface.
-    QPalette phonePalette(QColor("#e7ecf2"));
-    phonePalette.setColor(QPalette::Window, QColor("#f4f6f8"));
-    phonePalette.setColor(QPalette::Base, Qt::white);
-    phonePalette.setColor(QPalette::AlternateBase, QColor("#edf1f5"));
+    // Keep the editor surround quiet without changing the map's pixel colors.
+    QPalette phonePalette(QColor("#2c3a46"));
+    phonePalette.setColor(QPalette::Window, QColor("#202a33"));
+    phonePalette.setColor(QPalette::Base, QColor("#18222b"));
+    phonePalette.setColor(QPalette::AlternateBase, QColor("#26333f"));
+    phonePalette.setColor(QPalette::Light, QColor("#4b626f"));
+    phonePalette.setColor(QPalette::Mid, QColor("#304450"));
+    phonePalette.setColor(QPalette::Dark, QColor("#111b22"));
     for (auto role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText,
                       QPalette::ToolTipText})
-        phonePalette.setColor(role, QColor("#17212b"));
-    phonePalette.setColor(QPalette::ToolTipBase, Qt::white);
-    phonePalette.setColor(QPalette::Highlight, QColor("#1565c0"));
-    phonePalette.setColor(QPalette::HighlightedText, Qt::white);
+        phonePalette.setColor(role, QColor("#e4edf3"));
+    phonePalette.setColor(QPalette::ToolTipBase, QColor("#26333f"));
+    phonePalette.setColor(QPalette::Highlight, QColor("#83cdb6"));
+    phonePalette.setColor(QPalette::HighlightedText, QColor("#132e28"));
     for (auto role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText})
-        phonePalette.setColor(QPalette::Disabled, role, QColor("#6b7280"));
+        phonePalette.setColor(QPalette::Disabled, role, QColor("#7d919d"));
     a.setPalette(phonePalette);
 #endif
 

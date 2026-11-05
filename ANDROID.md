@@ -5,9 +5,10 @@ collision/elevation, undo/redo and saving. Android-specific code adds a small
 phone toolbar, full-width map/palette/list panels, Pan-mode touch gestures and
 project archive import/export. Desktop builds retain their existing interface.
 
-Version **0.2.0** adds project-folder access and a phone workspace. The header
+Version **0.3.0** adds hold-and-slide tools, two-finger navigation, an Edges
+workspace and a muted slate theme. The header
 contains Open, Save and More; bottom navigation switches Map, Maps, Tiles and
-Tools. Desktop builds keep the desktop interface.
+Edges. Desktop builds keep the desktop interface.
 
 ## Install and edit
 
@@ -19,11 +20,23 @@ Tools. Desktop builds keep the desktop interface.
    source project. Android may prevent choosing the storage root or Downloads
    itself; choose the actual project subfolder.
 3. Choose a map under **Maps**, select a tile under **Tiles**, then return to
-   **Map**. **Tools** provides Paint, Pan/pinch, Fill, Pick tile, collision,
-   undo/redo and zoom with large touch targets.
+   **Map**. Hold one finger still on the canvas for about half a second, slide
+   onto Paint, Fill, Pick tile, Undo or Redo, and release to choose it. Releasing
+   at the original spot or outside an option cancels. Pick tile samples the next
+   tile you tap and returns to Paint. Fill selects the bucket tool for the next tap.
+   Two fingers pan and pinch-zoom from any tool; lifting one finger does not start
+   painting. A one-finger stroke shows a preview and commits when released, so
+   adding a second finger or canceling a touch cannot leave stray edits.
+   **More → Map tools** retains collision and other explicit editing controls.
 4. Tap **Save** to save the working copy and write its changes back to the
    selected folder. `.git` and build caches are excluded. Git operations remain
    the responsibility of your Git client.
+
+**Edges** opens the native connected-map canvas. Two fingers move and zoom it;
+**Connections…** opens the list for adding/removing connections and changing
+their target, direction and offset, including the mirror option. Connection
+changes use the existing project model and save through the same Save button.
+The tile palette still contains the editable border metatiles.
 
 Android grants a folder URI rather than an ordinary C++ filesystem path.
 Porymap therefore keeps a private working mirror, plus hashes of the source

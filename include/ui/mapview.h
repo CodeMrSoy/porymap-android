@@ -86,17 +86,10 @@ public:
 #endif // QT_QML_LIB
 
 protected:
-#ifdef Q_OS_ANDROID
-    bool viewportEvent(QEvent *event) override;
-#endif
     virtual void drawForeground(QPainter *painter, const QRectF &rect) override;
     virtual void keyPressEvent(QKeyEvent*) override;
     virtual void moveEvent(QMoveEvent *event) override;
 private:
-#ifdef Q_OS_ANDROID
-    QPointF androidPanPosition;
-    qreal androidPinchDistance = 0;
-#endif
     QMap<int, Overlay*> overlayMap;
 
     void updateScene();

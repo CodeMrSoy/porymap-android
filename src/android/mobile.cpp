@@ -2,6 +2,7 @@
 #include "ui_mainwindow.h"
 #include "filedialog.h"
 #include "log.h"
+#include "androidmapgestures.h"
 
 #include <QActionGroup>
 #include <QApplication>
@@ -11,6 +12,8 @@
 #include <QGridLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QCheckBox>
+#include <QVBoxLayout>
 #include <QEventLoop>
 #include <QUrl>
 #include <QDir>
@@ -47,7 +50,6 @@ QString projectLibrary() {
     QDir().mkpath(path);
     return path;
 }
-
 void collectProjects(const QString &path, QStringList &roots, int depth = 0) {
     QDir dir(path);
     if (dir.exists("data/layouts/layouts.json") && dir.exists("data/maps/map_groups.json")) {
@@ -95,6 +97,8 @@ void archiveOperation(QWidget *parent, const QString &title, std::function<QStri
 }
 
 void MainWindow::showAndroidPanel(int panel) {
+    if (panel == 3 && (!isProjectOpen() || !editor->map || !ui->mainTabBar->isTabEnabled(MainTab::Connections))) panel = 0;
+    if (isProjectOpen()) on_mainTabBar_tabBarClicked(panel == 3 ? MainTab::Connections : MainTab::Map);
     // One full-width workspace at a time: a desktop three-column layout does
     // not fit a phone. The native models and editor widgets remain authoritative.
     ui->mapListContainer->setVisible(panel == 1);
@@ -129,6 +133,19 @@ void MainWindow::initAndroidUi() {
         "QLineEdit, QComboBox, QSpinBox { min-height: 34px; }"
         "QTabBar::tab { min-height: 36px; }"
         "QTreeView::item { min-height: 36px; }"));
+    setStyleSheet(styleSheet() + QStringLiteral(
+        "QMainWindow, QDialog { background: #202a33; color: #e4edf3; }"
+        "QToolBar, QFrame { border: 0; }"
+        "QTabWidget::pane { border: 0; }"
+        "QTabBar::tab { background: #26333f; color: #aebfc9; border: 0; padding: 4px 10px; }"
+        "QTabBar::tab:selected { background: #345650; color: #c8f4e5; }"
+        "QLineEdit, QComboBox, QSpinBox { background: #18222b; color: #e4edf3; border: 1px solid #465c69; border-radius: 8px; padding: 4px; }"
+        "QPushButton { background: #2c3a46; color: #e4edf3; border: 1px solid #465c69; border-radius: 10px; padding: 4px 10px; }"
+        "QPushButton:checked, QPushButton:pressed { background: #345650; border-color: #83cdb6; }"
+        "QPushButton:disabled { color: #7d919d; }"
+        "QGraphicsView { border: 0; background: #17232b; }"
+        "QScrollBar { background: #202a33; border: 0; }"
+        "QScrollBar::handle { background: #526976; border-radius: 3px; min-height: 24px; min-width: 24px; }"));
     ui->mapListContainer->setMinimumWidth(0);
     ui->mapViewTab->setMinimumWidth(0);
     ui->stackedWidget_MapEvents->setMinimumWidth(0);
@@ -151,6 +168,30 @@ void MainWindow::initAndroidUi() {
     }
     ui->graphicsView_Map->setTransformationAnchor(QGraphicsView::AnchorViewCenter);
     ui->graphicsView_Map->setResizeAnchor(QGraphicsView::AnchorViewCenter);
+    for (auto *view : QList<QGraphicsView *>{ui->graphicsView_Map, ui->graphicsView_Connections}) {
+        view->setFrameShape(QFrame::NoFrame);
+        view->setBackgroundBrush(QColor("#17232b"));
+        view->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        view->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        view->setTransformationAnchor(QGraphicsView::NoAnchor);
+        view->setResizeAnchor(QGraphicsView::AnchorViewCenter);
+    }
+    installAndroidMapGestures(ui->graphicsView_Map, editor, true);
+    installAndroidMapGestures(ui->graphicsView_Connections, editor, false);
+    ui->frame_ConnectionsTopBar->hide();
+    ui->frame_EditConnectionsPanel->hide();
+    ui->frame_EditConnectionsPanel->setMinimumWidth(0);
+    ui->frame_Connections->layout()->setContentsMargins(0, 0, 0, 0);
+    auto *connectionBar = new QWidget(ui->frame_Connections);
+    auto *connectionLayout = new QHBoxLayout(connectionBar);
+    connectionLayout->setContentsMargins(8, 4, 8, 4);
+    auto *connectionSettings = new QPushButton(tr("Connections…"), connectionBar);
+    connectionSettings->setObjectName("androidConnectionSettings");
+    connect(connectionSettings, &QPushButton::clicked, this, &MainWindow::showAndroidConnections);
+    connectionLayout->addWidget(connectionSettings);
+    auto *connectionHint = new QLabel(tr("Two fingers to move · pinch to zoom"), connectionBar);
+    connectionHint->setWordWrap(true); connectionLayout->addWidget(connectionHint, 1);
+    qobject_cast<QVBoxLayout *>(ui->frame_Connections->layout())->insertWidget(0, connectionBar);
 
     // Three stable header controls; the title yields space on narrow phones.
     auto *navigation = addToolBar(tr("Project"));
@@ -158,12 +199,12 @@ void MainWindow::initAndroidUi() {
     navigation->setMovable(false);
     navigation->setFloatable(false);
     navigation->setStyleSheet(QStringLiteral(
-        "QToolBar { border: 0; background: #f4f6f8; spacing: 4px; padding: 4px; }"
-        "QToolButton { color: #17212b; background: #e7ecf2; border-radius: 10px; min-height: 44px; padding: 2px 6px; }"
-        "QToolButton:disabled { color: #6b7280; }"
-        "QMenu { background: white; color: #17212b; }"
+        "QToolBar { border: 0; background: #202a33; spacing: 4px; padding: 4px; }"
+        "QToolButton { color: #e4edf3; background: #2c3a46; border-radius: 10px; min-height: 44px; padding: 2px 6px; }"
+        "QToolButton:disabled { color: #7d919d; }"
+        "QMenu { background: #26333f; color: #e4edf3; }"
         "QMenu::item { min-height: 40px; padding: 4px 16px; }"
-        "QMenu::item:selected { background: #1565c0; color: white; }"));
+        "QMenu::item:selected { background: #83cdb6; color: #132e28; }"));
     auto *open = new QToolButton(navigation);
     open->setObjectName("androidOpenFolderButton");
     open->setText(tr("Open")); open->setAccessibleName(tr("Open project folder"));
@@ -187,6 +228,7 @@ void MainWindow::initAndroidUi() {
     projectMenu->addAction(tr("Recent working copies…"), this, &MainWindow::chooseAndroidProject);
     projectMenu->addAction(tr("Import ZIP…"), this, &MainWindow::importAndroidProject)->setObjectName("androidImportAction");
     projectMenu->addAction(tr("Export ZIP…"), this, &MainWindow::exportAndroidProject);
+    projectMenu->addAction(tr("Map tools…"), this, &MainWindow::showAndroidTools)->setObjectName("androidToolsAction");
     projectMenu->addSeparator();
     projectMenu->addAction(undoAction); projectMenu->addAction(redoAction);
     projectMenu->addSeparator();
@@ -207,15 +249,15 @@ void MainWindow::initAndroidUi() {
     rowLayout->setContentsMargins(4, 4, 4, 4); rowLayout->setSpacing(4);
     row->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     auto *panels = new QActionGroup(this); panels->setExclusive(true);
-    const QStringList labels{tr("Map"), tr("Maps"), tr("Tiles"), tr("Tools")};
+    const QStringList labels{tr("Map"), tr("Maps"), tr("Tiles"), tr("Edges")};
     for (int i = 0; i < labels.size(); ++i) {
         auto *button = new QToolButton(row);
         button->setObjectName(QString("androidWorkspace%1").arg(i));
         button->setText(labels[i]); button->setAccessibleName(labels[i]);
         button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
         button->setMinimumSize(48, 48);
-        button->setStyleSheet("QToolButton { color: #17212b; border: 0; border-radius: 10px; padding: 4px; }"
-                             "QToolButton:checked { background: #d8e9ff; color: #084b9b; font-weight: bold; }");
+        button->setStyleSheet("QToolButton { color: #e4edf3; border: 0; border-radius: 10px; padding: 4px; }"
+                             "QToolButton:checked { background: #345650; color: #c8f4e5; font-weight: bold; }");
         rowLayout->addWidget(button, 1);
         if (i < 3) {
             auto *action = new QAction(labels[i], panels);
@@ -223,50 +265,9 @@ void MainWindow::initAndroidUi() {
             button->setDefaultAction(action);
             connect(action, &QAction::triggered, this, [this, i] { showAndroidPanel(i); });
         } else {
-            connect(button, &QToolButton::clicked, this, [this] {
-                if (!isProjectOpen()) return;
-                QDialog dialog(this); dialog.setWindowTitle(tr("Map tools"));
-                auto *grid = new QGridLayout(&dialog);
-                grid->setContentsMargins(16, 16, 16, 16); grid->setSpacing(10);
-                const QRect available = screen()->availableGeometry();
-                const int columns = available.width() > available.height() ? 4 : 2;
-                const QList<QPair<QString, Editor::EditAction>> modes{
-                    {tr("Paint"), Editor::EditAction::Paint}, {tr("Pan / pinch"), Editor::EditAction::Move},
-                    {tr("Fill"), Editor::EditAction::Fill}, {tr("Pick tile"), Editor::EditAction::Pick}};
-                for (int j = 0; j < modes.size(); ++j) {
-                    auto *tool = new QPushButton(modes[j].first, &dialog);
-                    tool->setMinimumSize(112, 52); tool->setCheckable(true);
-                    tool->setChecked(editor->getEditAction() == modes[j].second);
-                    grid->addWidget(tool, j / columns, j % columns);
-                    connect(tool, &QPushButton::clicked, &dialog, [&, mode = modes[j].second] {
-                        editor->setEditAction(mode); showAndroidPanel(0); dialog.accept();
-                    });
-                }
-                auto *collision = new QPushButton(tr("Collision"), &dialog);
-                collision->setMinimumHeight(48); collision->setCheckable(true);
-                collision->setChecked(ui->mapViewTab->currentIndex() == MapViewTab::Collision);
-                const int collisionRow = (modes.size() + columns - 1) / columns;
-                grid->addWidget(collision, collisionRow, 0, 1, columns);
-                connect(collision, &QPushButton::clicked, &dialog, [&](bool checked) {
-                    ui->mainTabBar->setCurrentIndex(MainTab::Map);
-                    on_mainTabBar_tabBarClicked(MainTab::Map);
-                    ui->mapViewTab->setCurrentIndex(checked ? MapViewTab::Collision : MapViewTab::Metatiles);
-                    on_mapViewTab_tabBarClicked(ui->mapViewTab->currentIndex());
-                    showAndroidPanel(2); dialog.accept();
-                });
-                const QList<QAction *> commands{undoAction, redoAction, ui->actionZoom_Out, ui->actionZoom_In};
-                const QStringList names{tr("Undo"), tr("Redo"), tr("Zoom −"), tr("Zoom +")};
-                for (int j = 0; j < commands.size(); ++j) {
-                    auto *button = new QPushButton(names[j], &dialog);
-                    button->setMinimumHeight(48); button->setEnabled(commands[j]->isEnabled());
-                    grid->addWidget(button, collisionRow + 1 + j / columns, j % columns);
-                    connect(button, &QPushButton::clicked, &dialog, [&, action = commands[j]] { action->trigger(); dialog.accept(); });
-                }
-                auto *close = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-                connect(close, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-                grid->addWidget(close, collisionRow + 1 + (commands.size() + columns - 1) / columns, 0, 1, columns);
-                dialog.exec();
-            });
+            auto *action = new QAction(tr("Edges"), panels);
+            action->setCheckable(true); button->setDefaultAction(action);
+            connect(action, &QAction::triggered, this, [this] { showAndroidPanel(3); });
         }
     }
     bottom->addWidget(row);
@@ -302,16 +303,82 @@ void MainWindow::initAndroidUi() {
 #endif
 }
 
+void MainWindow::showAndroidTools() {
+    if (!isProjectOpen()) return;
+    QDialog dialog(this); dialog.setWindowTitle(tr("Map tools"));
+    auto *grid = new QGridLayout(&dialog);
+    grid->setContentsMargins(16, 16, 16, 16); grid->setSpacing(10);
+    const QRect available = screen()->availableGeometry();
+    const int columns = available.width() > available.height() ? 4 : 2;
+    const QList<QPair<QString, Editor::EditAction>> modes{
+        {tr("Paint"), Editor::EditAction::Paint}, {tr("Pan / pinch"), Editor::EditAction::Move},
+        {tr("Fill"), Editor::EditAction::Fill}, {tr("Pick tile"), Editor::EditAction::Pick}};
+    for (int j = 0; j < modes.size(); ++j) {
+        auto *tool = new QPushButton(modes[j].first, &dialog);
+        tool->setMinimumSize(112, 52); tool->setCheckable(true);
+        tool->setChecked(editor->getEditAction() == modes[j].second);
+        grid->addWidget(tool, j / columns, j % columns);
+        connect(tool, &QPushButton::clicked, &dialog, [&, mode = modes[j].second] {
+            editor->setEditAction(mode); showAndroidPanel(0); dialog.accept();
+        });
+    }
+    auto *collision = new QPushButton(tr("Collision"), &dialog);
+    collision->setMinimumHeight(48); collision->setCheckable(true);
+    collision->setChecked(ui->mapViewTab->currentIndex() == MapViewTab::Collision);
+    const int collisionRow = (modes.size() + columns - 1) / columns;
+    grid->addWidget(collision, collisionRow, 0, 1, columns);
+    connect(collision, &QPushButton::clicked, &dialog, [&](bool checked) {
+        ui->mainTabBar->setCurrentIndex(MainTab::Map);
+        on_mainTabBar_tabBarClicked(MainTab::Map);
+        ui->mapViewTab->setCurrentIndex(checked ? MapViewTab::Collision : MapViewTab::Metatiles);
+        on_mapViewTab_tabBarClicked(ui->mapViewTab->currentIndex());
+        showAndroidPanel(2); dialog.accept();
+    });
+    const QList<QAction *> commands{undoAction, redoAction, ui->actionZoom_Out, ui->actionZoom_In};
+    const QStringList names{tr("Undo"), tr("Redo"), tr("Zoom −"), tr("Zoom +")};
+    for (int j = 0; j < commands.size(); ++j) {
+        auto *button = new QPushButton(names[j], &dialog);
+        button->setMinimumHeight(48); button->setEnabled(commands[j]->isEnabled());
+        grid->addWidget(button, collisionRow + 1 + j / columns, j % columns);
+        connect(button, &QPushButton::clicked, &dialog, [&, action = commands[j]] { action->trigger(); dialog.accept(); });
+    }
+    auto *close = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    connect(close, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    grid->addWidget(close, collisionRow + 1 + (commands.size() + columns - 1) / columns, 0, 1, columns);
+    dialog.exec();
+}
+
+void MainWindow::showAndroidConnections() {
+    if (!isProjectOpen() || !editor->map) return;
+    QDialog dialog(this); dialog.setWindowTitle(tr("Map connections"));
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *mirror = new QCheckBox(tr("Mirror opposite connections"), &dialog);
+    mirror->setChecked(ui->checkBox_MirrorConnections->isChecked());
+    connect(mirror, &QCheckBox::toggled, ui->checkBox_MirrorConnections, &QCheckBox::setChecked);
+    layout->addWidget(mirror);
+    auto *panel = ui->frame_EditConnectionsPanel;
+    panel->setParent(&dialog); layout->addWidget(panel, 1); panel->show();
+    ui->pushButton_AddConnection->setText(tr("Add connection"));
+    auto *close = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    connect(close, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(close);
+    const QSize available = screen()->availableGeometry().size();
+    dialog.resize(qMin(420, available.width() - 24), qMin(600, available.height() - 24));
+    dialog.exec();
+    layout->removeWidget(panel);
+    panel->setParent(ui->splitter_Connections); ui->splitter_Connections->insertWidget(1, panel); panel->hide();
+}
+
 void MainWindow::chooseAndroidProject() {
     QStringList roots; collectProjects(projectLibrary(), roots);
     if (roots.isEmpty()) { openAndroidFolder(); return; }
     QStringList labels;
     for (const QString &root : roots) {
         const QString relative = QDir(projectLibrary()).relativeFilePath(root);
-        labels.append(QFileInfo(root).fileName() + " — " + relative.section('/', 0, 0));
+        labels.append(QFileInfo(root).fileName() + " — " + relative.section('/', 0, 0).left(16));
     }
     bool ok = false;
-    const QString selected = QInputDialog::getItem(this, tr("Open project"), tr("Working copies (Save writes linked copies back to their folder)"), labels, 0, false, &ok);
+    const QString selected = QInputDialog::getItem(this, tr("Open project"), tr("Projects saved on this device"), labels, 0, false, &ok);
     if (ok && !selected.isEmpty()) openProject(roots.at(labels.indexOf(selected)));
 }
 
@@ -382,42 +449,4 @@ void MainWindow::exportAndroidProject() {
     }, [this](const QJsonObject &) {
         QMessageBox::information(this, tr("Project exported"), tr("Your saved project ZIP is ready to copy back to desktop Porymap."));
     });
-}
-
-bool MapView::viewportEvent(QEvent *event) {
-    // Pinch belongs to explicit Pan mode, so placing a second finger can never
-    // start a paint stroke. Paint/Pick/Fill retain Qt's single-touch mouse path.
-    const auto type = event->type();
-    if (editor && editor->getEditAction() == Editor::EditAction::Move &&
-        (type == QEvent::TouchBegin || type == QEvent::TouchUpdate ||
-         type == QEvent::TouchEnd || type == QEvent::TouchCancel)) {
-        auto *touch = static_cast<QTouchEvent *>(event);
-        const auto points = touch->points();
-        if (type == QEvent::TouchEnd || type == QEvent::TouchCancel || points.isEmpty()) {
-            androidPinchDistance = 0; event->accept(); return true;
-        }
-        QPointF center = points.first().position();
-        qreal distance = 0;
-        if (points.size() > 1) {
-            center = (center + points.at(1).position()) / 2;
-            distance = QLineF(points.first().position(), points.at(1).position()).length();
-        }
-        if (type == QEvent::TouchUpdate) {
-            const QPoint delta = (center - androidPanPosition).toPoint();
-            // Do not jump when a second finger first changes the gesture center.
-            if ((distance > 0) == (androidPinchDistance > 0)) {
-                horizontalScrollBar()->setValue(horizontalScrollBar()->value() - delta.x());
-                verticalScrollBar()->setValue(verticalScrollBar()->value() - delta.y());
-            }
-            if (distance > 0 && androidPinchDistance > 0) {
-                const qreal ratio = distance / androidPinchDistance;
-                if (ratio > 1.22 || ratio < 0.82) {
-                    editor->scaleMapView(ratio > 1 ? 1 : -1);
-                } else distance = androidPinchDistance; // Accumulate small movements.
-            }
-        }
-        androidPanPosition = center; androidPinchDistance = distance;
-        event->accept(); return true;
-    }
-    return GraphicsView::viewportEvent(event);
 }

@@ -14,6 +14,9 @@
 #include <QScreen>
 #include <QToolButton>
 #include <QTimer>
+#include <QTouchEvent>
+#include <QScrollBar>
+#include <QLineF>
 #include <QtTest>
 #include <stdexcept>
 #include <cmath>
@@ -126,6 +129,79 @@ void MainWindow::runAndroidSmokeTest() {
         }
         Block painted; layout->getBlock(10, 10, &painted);
         require(painted.metatileId() == tile, "Canvas mouse/touch painting did not change tile");
+        // Exercise the actual touch-event path, including multi-pointer sequences.
+        auto *device = QTest::createTouchDevice();
+        auto *view = ui->graphicsView_Map;
+        auto *viewport = view->viewport();
+        auto *gesture = view->findChild<QObject *>("androidGestures");
+        require(gesture, "Map gesture controller is missing");
+        auto holdChoose = [&](int option, const QString &snapshot = QString()) {
+            const QPoint start = viewport->rect().center();
+            auto sequence = QTest::touchEvent(viewport, device, false);
+            sequence.press(0, start, viewport).commit(); QTest::qWait(560);
+            auto *menu = viewport->findChild<QWidget *>("androidQuickMenu");
+            require(menu && menu->isVisible(), "Press and hold did not open the quick menu");
+            for (int i = 0; i < 5; ++i) {
+                const QRectF target = menu->property(qPrintable(QString("target%1").arg(i))).toRectF();
+                require(QRectF(viewport->rect()).contains(target), "Quick-menu option is outside the phone canvas");
+            }
+            if (option < 0) {
+                sequence.release(0, start, viewport).commit();
+                require(gesture->property("lastAction").toInt() == -1, "Releasing a hold selected an option without sliding");
+                return;
+            }
+            const int before = editor->editGroup.activeStack()->index();
+            const auto mode = editor->getEditAction();
+            const QPoint target = menu->property(qPrintable(QString("target%1").arg(option))).toRectF().center().toPoint();
+            sequence.move(0, target, viewport).commit(); QTest::qWait(60);
+            require(editor->editGroup.activeStack()->index() == before && editor->getEditAction() == mode,
+                    "Quick-menu action executed before releasing the finger");
+            if (!snapshot.isEmpty()) grab().save(data + "/android-quick-" + snapshot + ".png");
+            sequence.release(0, target, viewport).commit();
+            require(!menu->isVisible(), "Quick menu stayed open after release");
+            require(gesture->property("lastAction").toInt() == option, "Slide and release selected the wrong option");
+        };
+        const auto heldBlocks = layout->blockdata;
+        const int heldIndex = layout->editHistory.index();
+        holdChoose(-1);
+        require(layout->blockdata == heldBlocks && layout->editHistory.index() == heldIndex, "Opening the hold menu painted a tile");
+        holdChoose(1, "portrait"); require(editor->getEditAction() == Editor::EditAction::Fill, "Hold menu did not select Fill");
+        holdChoose(2); require(editor->getEditAction() == Editor::EditAction::Pick, "Hold menu did not select Pick tile");
+        editor->metatile_selector_item->select(original.metatileId());
+        const QPoint pickPoint = view->mapFromScene(QPointF(168, 168));
+        auto pickTouch = QTest::touchEvent(viewport, device, false);
+        pickTouch.press(0, pickPoint, viewport).commit(); pickTouch.release(0, pickPoint, viewport).commit();
+        require(editor->metatile_selector_item->getMetatileSelection().metatileItems.first().metatileId == tile,
+                "Pick tile did not sample the map tile");
+        require(editor->getEditAction() == Editor::EditAction::Paint && layout->blockdata == heldBlocks,
+                "Picking a tile painted the map or failed to return to Paint");
+        holdChoose(0); require(editor->getEditAction() == Editor::EditAction::Paint, "Hold menu did not select Paint");
+        holdChoose(3); require(layout->editHistory.index() == heldIndex - 1, "Hold-menu Undo failed");
+        holdChoose(4); require(layout->editHistory.index() == heldIndex, "Hold-menu Redo failed");
+        // A finger can start moving before the second arrives. Neither the
+        // pending stroke nor its history may survive conversion to navigation.
+        const QPoint center = viewport->rect().center();
+        const auto beforeNavigation = layout->blockdata;
+        const int beforeIndex = layout->editHistory.index(), beforeCount = layout->editHistory.count();
+        const QPointF sceneBefore = view->mapToScene(center);
+        const qreal scaleBefore = view->transform().m11();
+        auto navigation = QTest::touchEvent(viewport, device, false);
+        navigation.press(0, center - QPoint(40, 0), viewport).commit();
+        navigation.move(0, center - QPoint(20, 0), viewport).commit();
+        navigation.stationary(0).press(1, center + QPoint(40, 0), viewport).commit();
+        navigation.move(0, center + QPoint(10, 20), viewport).move(1, center + QPoint(70, 20), viewport).commit();
+        require(QLineF(sceneBefore, view->mapToScene(center)).length() > 5, "Two-finger pan did not move the canvas");
+        navigation.move(0, center - QPoint(20, 20), viewport).move(1, center + QPoint(100, 20), viewport).commit();
+        require(view->transform().m11() > scaleBefore, "Pinch-out did not zoom in");
+        navigation.move(0, center + QPoint(10, 20), viewport).move(1, center + QPoint(70, 20), viewport).commit();
+        require(qAbs(view->transform().m11() - scaleBefore) < 0.05, "Pinch-in did not zoom back out");
+        navigation.stationary(0).release(1, center + QPoint(70, 20), viewport).commit();
+        navigation.move(0, center, viewport).commit(); QTest::qWait(530);
+        navigation.release(0, center, viewport).commit();
+        require(layout->blockdata == beforeNavigation && layout->editHistory.index() == beforeIndex && layout->editHistory.count() == beforeCount,
+                "Two-finger navigation changed tiles or undo/redo history");
+        editor->setAndroidMapScale(scaleBefore);
+        view->QGraphicsView::centerOn(168, 168);
         layout->editHistory.undo();
         Block undone; layout->getBlock(10, 10, &undone);
         require(undone == original, "Undo did not restore original block");
@@ -157,8 +233,8 @@ void MainWindow::runAndroidSmokeTest() {
         require(reopened == changed, "ZIP round trip lost map edits");
         auto checkTools = [this, data](const QString &name) {
             bool fits = false;
-            auto *tools = findChild<QToolButton *>("androidWorkspace3");
-            require(tools && tools->isVisible(), "Tools button is hidden");
+            auto *tools = findChild<QAction *>("androidToolsAction");
+            require(tools && tools->isEnabled(), "Map tools action is unavailable");
             QTimer timer; timer.setSingleShot(true);
             connect(&timer, &QTimer::timeout, this, [&] {
                 auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
@@ -170,35 +246,48 @@ void MainWindow::runAndroidSmokeTest() {
                 }
             });
             timer.start(300);
-            QTest::mouseClick(tools, Qt::LeftButton);
+            tools->trigger();
             timer.stop();
             require(fits, "Tools dialog exceeds phone bounds");
         };
         checkTools("portrait");
-        for (int panel = 0; panel < 3; ++panel) {
+        for (int panel = 0; panel < 4; ++panel) {
             showAndroidPanel(panel); requirePhoneWindowFits(this);
             auto *button = findChild<QToolButton *>(QString("androidWorkspace%1").arg(panel));
             require(button && button->width() >= 48 && button->height() >= 48, "Bottom navigation touch target is too small");
             require(button->isVisible(), "Bottom navigation is hidden");
             grab().save(data + QString("/android-panel-%1.png").arg(panel));
         }
+        require(editor->getEditMode() == Editor::EditMode::Connections && ui->graphicsView_Connections->isVisible(), "Edges did not open the native connection editor");
+        bool connectionFits = false;
+        QTimer closeConnections; closeConnections.setSingleShot(true);
+        connect(&closeConnections, &QTimer::timeout, this, [&] {
+            if (auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget())) {
+                connectionFits = screen()->availableGeometry().contains(QRect(dialog->mapToGlobal(QPoint()), dialog->size()));
+                dialog->grab().save(data + "/android-connections.png"); dialog->accept();
+            }
+        });
+        closeConnections.start(300); showAndroidConnections(); closeConnections.stop();
+        require(connectionFits, "Connection settings exceed phone bounds");
+        showAndroidPanel(0); on_mapViewTab_tabBarClicked(MapViewTab::Metatiles);
         if (fromPicker) {
             QFile rotate(data + "/android-rotate.request");
             require(rotate.open(QIODevice::WriteOnly), "Cannot request landscape test"); rotate.close();
             for (int i = 0; i < 150 && width() <= height(); ++i) QTest::qWait(200);
             require(width() > height(), "Android did not rotate to landscape");
-            for (int panel = 0; panel < 3; ++panel) {
+            for (int panel = 0; panel < 4; ++panel) {
                 showAndroidPanel(panel); requirePhoneWindowFits(this);
                 grab().save(data + QString("/android-landscape-%1.png").arg(panel));
             }
             checkTools("landscape");
+            showAndroidPanel(0); holdChoose(0, "landscape");
         }
         showAndroidPanel(0);
         ui->graphicsView_Map->QGraphicsView::centerOn(168, 168);
         grab().save(data + "/android-smoke.png");
         result.insert("status", "passed");
         result.insert("checks", fromPicker
-            ? "Android touch, system folder picker, linked folder save, load, canvas paint, undo, redo, collision, reopen, JNI ZIP export/import, mobile panels"
+            ? "Android touch, folder save-back, hold-slide-release Fill/Pick/Paint/Undo/Redo, two-finger pan/pinch without edits, connections, portrait/landscape, ZIP round trip"
             : "load, canvas paint, undo, redo, collision, save, reopen, JNI ZIP export/import");
     } catch (const std::exception &error) {
         result.insert("status", "failed"); result.insert("error", QString::fromUtf8(error.what()));

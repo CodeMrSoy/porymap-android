@@ -340,10 +340,10 @@ android {
     ANDROID_PACKAGE_SOURCE_DIR = $$PWD/android
     ANDROID_MIN_SDK_VERSION = 28
     ANDROID_TARGET_SDK_VERSION = 36
-    ANDROID_VERSION_CODE = 5
-    ANDROID_VERSION_NAME = 0.2.0
+    ANDROID_VERSION_CODE = 6
+    ANDROID_VERSION_NAME = 0.3.0
     QMAKE_LFLAGS += -Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384
-    SOURCES = src/android/mobile.cpp $$SOURCES
+    SOURCES = src/android/mobile.cpp src/android/mapgestures.cpp $$SOURCES
     contains(CONFIG, android_smoke_test) {
         DEFINES += PORYMAP_ANDROID_TESTS
         QT += testlib

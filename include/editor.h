@@ -183,6 +183,9 @@ public:
     void deleteSelectedEvents();
     void shouldReselectEvents();
     void scaleMapView(int);
+#ifdef Q_OS_ANDROID
+    void setAndroidMapScale(qreal factor);
+#endif
     static void openInTextEditor(const QString &path, int lineNum = 0);
     void openMapJson(const QString &mapName) const;
     void openLayoutJson(const QString &layoutId) const;

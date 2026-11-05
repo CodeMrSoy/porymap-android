@@ -326,6 +326,8 @@ private:
     void importAndroidProject();
     void exportAndroidProject();
     void showAndroidPanel(int panel);
+    void showAndroidTools();
+    void showAndroidConnections();
 #ifdef PORYMAP_ANDROID_TESTS
     void runAndroidSmokeTest();
 #endif

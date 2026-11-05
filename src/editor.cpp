@@ -1143,6 +1143,19 @@ const QList<double> zoomLevels = QList<double>
     6.0,
 };
 
+#ifdef Q_OS_ANDROID
+void Editor::setAndroidMapScale(qreal factor) {
+    factor = qBound(zoomLevels.first(), factor, zoomLevels.last());
+    int nearest = 0;
+    for (int i = 1; i < zoomLevels.size(); ++i)
+        if (qAbs(zoomLevels[i] - factor) < qAbs(zoomLevels[nearest] - factor)) nearest = i;
+    scaleIndex = nearest;
+    const auto transform = QTransform::fromScale(factor, factor);
+    ui->graphicsView_Map->setTransform(transform);
+    ui->graphicsView_Connections->setTransform(transform);
+}
+#endif
+
 void Editor::scaleMapView(int s) {
     // Clamp the scale index to a valid value.
     int nextScaleIndex = this->scaleIndex + s;

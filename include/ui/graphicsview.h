@@ -58,6 +58,10 @@ public:
                 }
                 else if (event->type() == QEvent::MouseButtonRelease) {
                     auto mouseEvent = static_cast<QMouseEvent*>(event);
+#ifdef Q_OS_ANDROID
+                    if (mouseEvent->button() != Qt::MiddleButton)
+                        return QGraphicsView::eventFilter(obj, event);
+#endif
                     QMouseEvent* releaseEvent = createLeftButtonMouseEvent(mouseEvent);
                     this->mouseReleaseEvent(releaseEvent);
                     this->setDragMode(desiredDragMode);
