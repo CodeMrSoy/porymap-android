@@ -7,6 +7,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScrollBar>
+#include <QSet>
 #include <QTimer>
 #include <QTouchEvent>
 #include <QVariant>
@@ -15,7 +16,7 @@
 namespace {
 class GestureOverlay : public QWidget {
 public:
-    explicit GestureOverlay(QWidget *parent) : QWidget(parent) {
+    GestureOverlay(QWidget *parent, QGraphicsView *view, Editor *editor) : QWidget(parent), mapView(view), engine(editor) {
         setObjectName("androidQuickMenu");
         setAttribute(Qt::WA_TransparentForMouseEvents);
         setAttribute(Qt::WA_NoSystemBackground);
@@ -27,6 +28,8 @@ public:
     bool undoEnabled = false, redoEnabled = false;
     QList<QPointF> stroke;
     QList<QRectF> targets;
+    QGraphicsView *mapView;
+    Editor *engine;
     void openMenu(QPointF origin, bool undo, bool redo) {
         setGeometry(parentWidget()->rect());
         menu = true; stroke.clear(); selected = -1;
@@ -35,7 +38,8 @@ public:
         const qreal halfWidth = wide ? 244.0 : 144.0;
         const qreal halfHeight = wide ? 54.0 : 112.0;
         const qreal cx = qBound(halfWidth, origin.x(), qMax(halfWidth, width() - halfWidth));
-        const qreal cy = qBound(halfHeight, origin.y(), qMax(halfHeight, height() - halfHeight));
+        const qreal desiredY = wide ? origin.y() + (origin.y() > height() / 2.0 ? -70 : 70) : origin.y();
+        const qreal cy = qBound(halfHeight, desiredY, qMax(halfHeight, height() - halfHeight));
         const QList<QPointF> offsets = wide
             ? QList<QPointF>{{-188, 0}, {-94, 0}, {0, 0}, {94, 0}, {188, 0}}
             : QList<QPointF>{{0, -78}, {-94, -16}, {94, -16}, {-54, 58}, {54, 58}};
@@ -66,6 +70,26 @@ protected:
         QPainter painter(this); painter.setRenderHint(QPainter::Antialiasing);
         if (!menu) {
             if (stroke.size() < 2) return;
+            if (engine->getEditMode() == Editor::EditMode::Metatiles && engine->getEditAction() == Editor::EditAction::Paint &&
+                engine->layout && engine->current_metatile_selection_item) {
+                const QPixmap brush = engine->current_metatile_selection_item->pixmap();
+                const QPointF anchor = mapView->mapToScene(stroke.first().toPoint()) / 16.0;
+                const int ax = int(std::floor(anchor.x())), ay = int(std::floor(anchor.y()));
+                const int columns = qMax(1, brush.width() / 16), rows = qMax(1, brush.height() / 16);
+                QSet<QPair<int, int>> visited;
+                painter.setClipRect(mapView->mapFromScene(QRectF(0, 0, engine->layout->pixelWidth(), engine->layout->pixelHeight())).boundingRect());
+                painter.setRenderHint(QPainter::SmoothPixmapTransform, false); painter.setOpacity(0.85);
+                for (const auto &point : stroke) {
+                    const QPointF scene = mapView->mapToScene(point.toPoint()) / 16.0;
+                    const int x = ax + int(std::floor((std::floor(scene.x()) - ax) / columns)) * columns;
+                    const int y = ay + int(std::floor((std::floor(scene.y()) - ay) / rows)) * rows;
+                    const QPair<int, int> key{x, y}; if (visited.contains(key)) continue; visited.insert(key);
+                    const QRect target = mapView->mapFromScene(QRectF(x * 16, y * 16, brush.width(), brush.height())).boundingRect();
+                    painter.drawPixmap(target, brush);
+                    painter.setPen(QPen(QColor("#83cdb6"), 1)); painter.setBrush(Qt::NoBrush); painter.drawRect(target);
+                }
+                return;
+            }
             painter.setPen(QPen(QColor(125, 211, 184, 170), 7, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
             for (int i = 1; i < stroke.size(); ++i) painter.drawLine(stroke[i - 1], stroke[i]);
             return;
@@ -94,15 +118,15 @@ protected:
 class AndroidMapGestures : public QObject {
 public:
     AndroidMapGestures(QGraphicsView *view, Editor *editor, bool menu)
-        : QObject(view), view(view), editor(editor), allowMenu(menu), overlay(new GestureOverlay(view->viewport())) {
+        : QObject(view), view(view), editor(editor), allowMenu(menu), overlay(new GestureOverlay(view->viewport(), view, editor)) {
         setObjectName("androidGestures");
         view->viewport()->setAttribute(Qt::WA_AcceptTouchEvents);
         view->viewport()->installEventFilter(this);
         hold.setSingleShot(true); hold.setInterval(480);
         connect(&hold, &QTimer::timeout, this, [this] {
-            if (state != Pending || !allowMenu || !editor->layout) return;
+            if (state != Pending || !allowMenu || !this->editor->layout) return;
             state = Menu;
-            overlay->openMenu(origin, editor->editGroup.canUndo(), editor->editGroup.canRedo());
+            overlay->openMenu(origin, this->editor->editGroup.canUndo(), this->editor->editGroup.canRedo());
         });
     }
 protected:
