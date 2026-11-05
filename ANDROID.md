@@ -41,7 +41,15 @@ Backgrounding saves to the private working copy only; explicitly tap **Save**
 to update the selected folder. Uninstalling removes private copies, so save or
 export first. ZIP import/export remain under **More** for project transfer.
 ZIP imports are independent private projects and require Export ZIP to transfer
-their changes back. Development signing keys are cached for APK updates.
+their changes back. The first folder open can take several minutes for a large
+repository; resuming a working copy avoids copying the source tree again.
+
+Before replacing 0.1.3, export any edits to a ZIP outside the app. That earlier
+APK used a fresh Gradle signing key that was not retained, so 0.2.0 requires a
+one-time uninstall/reinstall. Uninstalling removes private working copies.
+Builds now explicitly sign with the cached development key and publish its
+certificate fingerprint alongside the APK. Cache loss can still require a new
+development signing identity.
 
 Archives exclude `.git`, `build`, `.gradle`, `.cxx`, `__pycache__`, and
 `node_modules` directory components. Other project bytes, including PNGs,
@@ -102,6 +110,11 @@ Version **0.1.3** APKs were produced in
 The complete Android 17 touch/picker/import/edit test passed in
 [retest 41912009147](https://github.com/CodeMrSoy/porymap-android/actions/runs/41912009147).
 Screenshots of the readable toolbar, system picker and loaded map were inspected.
+Version **0.2.0** folder selection, real Android touch painting, source-folder
+save-back byte comparison, ZIP round trips, all workspace panels and the Tools
+dialog in portrait and landscape passed in
+[retest 41956806392](https://github.com/CodeMrSoy/porymap-android/actions/runs/41956806392).
+Its map, selector and Tools screenshots were inspected.
 Emulator tests run separately from compiler jobs with 4 GiB RAM/data storage;
 the workflow pins current SDK tools and checks the Android 17 AVD target before boot.
 
