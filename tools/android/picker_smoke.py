@@ -55,6 +55,9 @@ try:
                                      "files/android-ui-targets.json", check=False))
             break
         except ValueError:
+            failed = adb("exec-out", "run-as", package, "cat", "files/android-smoke.result.json", check=False)
+            if b'"failed"' in failed:
+                raise RuntimeError(failed.decode(errors="replace"))
             time.sleep(1)
     if targets is None:
         raise RuntimeError("App did not expose an enabled Import ZIP button")

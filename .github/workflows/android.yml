@@ -93,10 +93,11 @@ jobs:
           mkdir -p artifacts
           apk=$(find build/android/android-build -name '*debug.apk' | head -n 1)
           test -n "$apk"
-          cp "$apk" artifacts/porymap-android-${{ matrix.abi }}-debug.apk
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$apk"
-          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$apk"
-          python3 tools/android/check_apk.py "$apk"
+          signed=artifacts/porymap-android-${{ matrix.abi }}-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign --ks "$HOME/.android/debug.keystore" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out "$signed" "$apk"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$signed" | tee artifacts/SIGNING-CERTIFICATE.txt
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$signed"
+          python3 tools/android/check_apk.py "$signed"
           sha256sum artifacts/*.apk > artifacts/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
