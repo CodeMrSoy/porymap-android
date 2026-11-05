@@ -2030,6 +2030,9 @@ bool MainWindow::save(bool currentOnly) {
     }
 
     saveGlobalConfigs();
+#ifdef Q_OS_ANDROID
+    if (success) success = syncAndroidFolder();
+#endif
     return success;
 }
 

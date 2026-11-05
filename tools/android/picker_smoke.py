@@ -87,7 +87,26 @@ try:
         time.sleep(1)
         nodes = snapshot()
     if not selected:
-        raise RuntimeError("Fixture ZIP is not visible in Android Downloads")
+        raise RuntimeError("Fixture project folder is not visible in Android Downloads")
+    # Opening a directory navigates into it; Android requires an explicit tree grant.
+    for _ in range(8):
+        nodes = snapshot()
+        use = named(nodes, "USE THIS FOLDER")
+        if use is None:
+            use = named(nodes, "Use this folder")
+        if use is not None:
+            tap(use)
+            time.sleep(1)
+            nodes = snapshot()
+            allow = named(nodes, "ALLOW")
+            if allow is None:
+                allow = named(nodes, "Allow")
+            if allow is not None:
+                tap(allow)
+            break
+        time.sleep(1)
+    else:
+        raise RuntimeError("Android did not offer Use this folder")
     # Wait for the source project to finish importing/loading, then paint via
     # the same Android input path as a finger, rather than a Qt mouse test.
     paint = None
@@ -103,7 +122,7 @@ try:
     adb("shell", "input", "tap", str(paint["x"]), str(paint["y"]))
     adb("shell", "run-as", package, "touch", "files/android-touch.done")
     (evidence / "picker-result.json").write_text(json.dumps({
-        "status": "passed", "checks": "Android touch opened SAF picker, selected project ZIP and tapped the paint canvas"
+        "status": "passed", "checks": "Android touch opened SAF tree picker, selected project folder and tapped the paint canvas"
     }))
 except Exception as error:
     screenshot("picker-failure.png")

@@ -9,6 +9,16 @@ import java.io.*;
 public final class AndroidFiles {
     private AndroidFiles() {}
 
+    public static String openFolder(Context context, String uri, String destination) {
+        try { return AndroidFolder.open(context, uri, destination); }
+        catch (Exception e) { return error(e); }
+    }
+
+    public static String saveFolder(Context context, String root, String unused) {
+        try { return AndroidFolder.save(context, root); }
+        catch (Exception e) { return error(e); }
+    }
+
     public static String importProject(Context context, String location, String destination) {
         try {
             Uri uri = Uri.parse(location);

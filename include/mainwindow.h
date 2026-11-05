@@ -320,6 +320,8 @@ signals:
 private:
 #ifdef Q_OS_ANDROID
     void initAndroidUi();
+    void openAndroidFolder();
+    bool syncAndroidFolder();
     void chooseAndroidProject();
     void importAndroidProject();
     void exportAndroidProject();

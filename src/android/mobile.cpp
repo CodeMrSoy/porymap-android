@@ -6,6 +6,13 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QDateTime>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QGridLayout>
+#include <QLabel>
+#include <QPushButton>
+#include <QEventLoop>
+#include <QUrl>
 #include <QDir>
 #include <QFileInfo>
 #include <QFutureWatcher>
@@ -93,6 +100,8 @@ void MainWindow::showAndroidPanel(int panel) {
     ui->stackedWidget_MapEvents->setVisible(panel == 2);
     ui->frame_9->setVisible(panel == 0);
     setProperty("androidPanel", panel);
+    if (auto *button = findChild<QToolButton *>(QString("androidWorkspace%1").arg(panel)))
+        if (button->defaultAction()) button->defaultAction()->setChecked(true);
 }
 
 void MainWindow::initAndroidUi() {
@@ -127,31 +136,43 @@ void MainWindow::initAndroidUi() {
     ui->graphicsView_Map->setTransformationAnchor(QGraphicsView::AnchorViewCenter);
     ui->graphicsView_Map->setResizeAnchor(QGraphicsView::AnchorViewCenter);
 
-    auto *navigation = addToolBar(QStringLiteral("Phone project tools"));
+    // Three stable header controls; the title yields space on narrow phones.
+    auto *navigation = addToolBar(tr("Project"));
     navigation->setObjectName("androidNavigation");
     navigation->setMovable(false);
-    navigation->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    navigation->setFloatable(false);
     navigation->setStyleSheet(QStringLiteral(
-        "QToolBar { background: #f4f6f8; color: #17212b; }"
-        "QToolButton { color: #17212b; min-height: 42px; padding: 3px; }"
+        "QToolBar { border: 0; background: #f4f6f8; spacing: 4px; padding: 4px; }"
+        "QToolButton { color: #17212b; background: #e7ecf2; border-radius: 10px; min-height: 44px; padding: 2px 6px; }"
         "QToolButton:disabled { color: #6b7280; }"
         "QMenu { background: white; color: #17212b; }"
+        "QMenu::item { min-height: 40px; padding: 4px 16px; }"
         "QMenu::item:selected { background: #1565c0; color: white; }"));
-    auto *importButton = new QToolButton(navigation);
-    importButton->setObjectName("androidImportButton");
-    importButton->setText(tr("Import ZIP"));
-    importButton->setAccessibleName(tr("Import project ZIP"));
-    connect(importButton, &QToolButton::clicked, this, &MainWindow::importAndroidProject);
-    navigation->addWidget(importButton);
+    auto *open = new QToolButton(navigation);
+    open->setObjectName("androidOpenFolderButton");
+    open->setText(tr("Open")); open->setAccessibleName(tr("Open project folder"));
+    connect(open, &QToolButton::clicked, this, &MainWindow::openAndroidFolder);
+    navigation->addWidget(open);
+    auto *title = new QLabel(tr("Porymap"), navigation);
+    title->setObjectName("androidMapTitle");
+    title->setMinimumWidth(0);
+    title->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    title->setStyleSheet("font-weight: bold; padding: 4px;");
+    navigation->addWidget(title);
+    ui->action_Save_Project->setText(tr("Save"));
+    navigation->addAction(ui->action_Save_Project);
     auto *projectButton = new QToolButton(navigation);
     projectButton->setObjectName("androidProjectButton");
-    projectButton->setText(tr("Project"));
+    projectButton->setText(tr("More"));
     projectButton->setAccessibleName(tr("Project menu"));
     projectButton->setPopupMode(QToolButton::InstantPopup);
     auto *projectMenu = new QMenu(projectButton);
-    projectMenu->addAction(tr("Import project ZIP…"), this, &MainWindow::importAndroidProject);
-    projectMenu->addAction(tr("Open imported project…"), this, &MainWindow::chooseAndroidProject);
-    projectMenu->addAction(tr("Export project ZIP…"), this, &MainWindow::exportAndroidProject);
+    projectMenu->addAction(tr("Open project folder…"), this, &MainWindow::openAndroidFolder);
+    projectMenu->addAction(tr("Recent working copies…"), this, &MainWindow::chooseAndroidProject);
+    projectMenu->addAction(tr("Import ZIP…"), this, &MainWindow::importAndroidProject)->setObjectName("androidImportAction");
+    projectMenu->addAction(tr("Export ZIP…"), this, &MainWindow::exportAndroidProject);
+    projectMenu->addSeparator();
+    projectMenu->addAction(undoAction); projectMenu->addAction(redoAction);
     projectMenu->addSeparator();
     projectMenu->addMenu(ui->menuFile);
     projectMenu->addMenu(ui->menuEdit);
@@ -159,50 +180,89 @@ void MainWindow::initAndroidUi() {
     projectMenu->addMenu(ui->menuHelp);
     projectButton->setMenu(projectMenu);
     navigation->addWidget(projectButton);
-    auto *maps = navigation->addAction(tr("Maps"));
-    connect(maps, &QAction::triggered, this, [this] {
-        showAndroidPanel(property("androidPanel").toInt() == 1 ? 0 : 1);
-    });
-    auto *tiles = navigation->addAction(tr("Palette"));
-    connect(tiles, &QAction::triggered, this, [this] {
-        showAndroidPanel(property("androidPanel").toInt() == 2 ? 0 : 2);
-    });
-    ui->action_Save_Project->setText(tr("Save"));
-    navigation->addAction(ui->action_Save_Project);
-    navigation->addAction(undoAction);
-    navigation->addAction(redoAction);
-    addToolBarBreak();
-    auto *tools = addToolBar(QStringLiteral("Phone map tools"));
-    tools->setObjectName("androidMapTools");
-    tools->setMovable(false);
-    tools->setToolButtonStyle(Qt::ToolButtonTextOnly);
-    auto *actions = new QActionGroup(this);
-    actions->setExclusive(true);
-    for (const auto &entry : QList<QPair<QString, Editor::EditAction>>{
-             {tr("Paint"), Editor::EditAction::Paint}, {tr("Pan"), Editor::EditAction::Move},
-             {tr("Fill"), Editor::EditAction::Fill}, {tr("Pick"), Editor::EditAction::Pick}}) {
-        auto *action = tools->addAction(entry.first);
-        action->setCheckable(true); actions->addAction(action);
-        action->setChecked(entry.second == Editor::EditAction::Paint);
-        connect(action, &QAction::triggered, this, [this, mode = entry.second] {
-            editor->setEditAction(mode); showAndroidPanel(0);
-        });
+
+    // A full-width bottom navigation row never overflows into Qt's tiny extension menu.
+    auto *bottom = new QToolBar(tr("Workspace"), this);
+    bottom->setObjectName("androidWorkspace");
+    bottom->setMovable(false); bottom->setFloatable(false);
+    addToolBar(Qt::BottomToolBarArea, bottom);
+    auto *row = new QWidget(bottom);
+    auto *rowLayout = new QHBoxLayout(row);
+    rowLayout->setContentsMargins(4, 4, 4, 4); rowLayout->setSpacing(4);
+    row->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    auto *panels = new QActionGroup(this); panels->setExclusive(true);
+    const QStringList labels{tr("Map"), tr("Maps"), tr("Tiles"), tr("Tools")};
+    for (int i = 0; i < labels.size(); ++i) {
+        auto *button = new QToolButton(row);
+        button->setObjectName(QString("androidWorkspace%1").arg(i));
+        button->setText(labels[i]); button->setAccessibleName(labels[i]);
+        button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+        button->setMinimumSize(48, 48);
+        button->setStyleSheet("QToolButton { color: #17212b; border: 0; border-radius: 10px; padding: 4px; }"
+                             "QToolButton:checked { background: #d8e9ff; color: #084b9b; font-weight: bold; }");
+        rowLayout->addWidget(button, 1);
+        if (i < 3) {
+            auto *action = new QAction(labels[i], panels);
+            action->setCheckable(true); action->setChecked(i == 0);
+            button->setDefaultAction(action);
+            connect(action, &QAction::triggered, this, [this, i] { showAndroidPanel(i); });
+        } else {
+            connect(button, &QToolButton::clicked, this, [this] {
+                if (!isProjectOpen()) return;
+                QDialog dialog(this); dialog.setWindowTitle(tr("Map tools"));
+                auto *grid = new QGridLayout(&dialog);
+                grid->setContentsMargins(16, 16, 16, 16); grid->setSpacing(10);
+                const QRect available = screen()->availableGeometry();
+                const int columns = available.width() > available.height() ? 4 : 2;
+                const QList<QPair<QString, Editor::EditAction>> modes{
+                    {tr("Paint"), Editor::EditAction::Paint}, {tr("Pan / pinch"), Editor::EditAction::Move},
+                    {tr("Fill"), Editor::EditAction::Fill}, {tr("Pick tile"), Editor::EditAction::Pick}};
+                for (int j = 0; j < modes.size(); ++j) {
+                    auto *tool = new QPushButton(modes[j].first, &dialog);
+                    tool->setMinimumSize(112, 52); tool->setCheckable(true);
+                    tool->setChecked(editor->getEditAction() == modes[j].second);
+                    grid->addWidget(tool, j / columns, j % columns);
+                    connect(tool, &QPushButton::clicked, &dialog, [&, mode = modes[j].second] {
+                        editor->setEditAction(mode); showAndroidPanel(0); dialog.accept();
+                    });
+                }
+                auto *collision = new QPushButton(tr("Collision"), &dialog);
+                collision->setMinimumHeight(48); collision->setCheckable(true);
+                collision->setChecked(ui->mapViewTab->currentIndex() == MapViewTab::Collision);
+                const int collisionRow = (modes.size() + columns - 1) / columns;
+                grid->addWidget(collision, collisionRow, 0, 1, columns);
+                connect(collision, &QPushButton::clicked, &dialog, [&](bool checked) {
+                    ui->mainTabBar->setCurrentIndex(MainTab::Map);
+                    on_mainTabBar_tabBarClicked(MainTab::Map);
+                    ui->mapViewTab->setCurrentIndex(checked ? MapViewTab::Collision : MapViewTab::Metatiles);
+                    on_mapViewTab_tabBarClicked(ui->mapViewTab->currentIndex());
+                    showAndroidPanel(2); dialog.accept();
+                });
+                const QList<QAction *> commands{undoAction, redoAction, ui->actionZoom_Out, ui->actionZoom_In};
+                const QStringList names{tr("Undo"), tr("Redo"), tr("Zoom −"), tr("Zoom +")};
+                for (int j = 0; j < commands.size(); ++j) {
+                    auto *button = new QPushButton(names[j], &dialog);
+                    button->setMinimumHeight(48); button->setEnabled(commands[j]->isEnabled());
+                    grid->addWidget(button, collisionRow + 1 + j / columns, j % columns);
+                    connect(button, &QPushButton::clicked, &dialog, [&, action = commands[j]] { action->trigger(); dialog.accept(); });
+                }
+                auto *close = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+                connect(close, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+                grid->addWidget(close, collisionRow + 1 + (commands.size() + columns - 1) / columns, 0, 1, columns);
+                dialog.exec();
+            });
+        }
     }
-    auto *collision = tools->addAction(tr("Collision"));
-    collision->setCheckable(true);
-    connect(collision, &QAction::toggled, this, [this](bool checked) {
-        ui->mainTabBar->setCurrentIndex(MainTab::Map);
-        on_mainTabBar_tabBarClicked(MainTab::Map);
-        ui->mapViewTab->setCurrentIndex(checked ? MapViewTab::Collision : MapViewTab::Metatiles);
-        on_mapViewTab_tabBarClicked(ui->mapViewTab->currentIndex());
-        showAndroidPanel(2);
+    bottom->addWidget(row);
+    connect(this, &MainWindow::mapOpened, title, [this, title] {
+        title->setText(editor->map ? editor->map->name() : tr("Porymap"));
     });
-    tools->addAction(ui->actionZoom_Out);
-    tools->addAction(ui->actionZoom_In);
-    if (!isProjectOpen()) {
-        tools->setEnabled(false);
-        objectsDisabled.insert(tools);
-    }
+    // Hide desktop tab strips, status bar and nested layout margins around the canvas.
+    ui->mapViewTab->tabBar()->hide();
+    ui->horizontalSpacer_20->changeSize(0, 0, QSizePolicy::Ignored, QSizePolicy::Ignored);
+    statusBar()->hide();
+    for (auto *frame : {ui->frame_9, ui->frame_Main})
+        if (frame->layout()) { frame->layout()->setContentsMargins(0, 0, 0, 0); frame->layout()->setSpacing(0); }
     ui->horizontalSlider_MetatileZoom->setValue(60);
     ui->horizontalSlider_CollisionZoom->setValue(60);
     connect(this, &MainWindow::mapOpened, this, [this] { showAndroidPanel(0); });
@@ -228,15 +288,55 @@ void MainWindow::initAndroidUi() {
 
 void MainWindow::chooseAndroidProject() {
     QStringList roots; collectProjects(projectLibrary(), roots);
-    if (roots.isEmpty()) { importAndroidProject(); return; }
+    if (roots.isEmpty()) { openAndroidFolder(); return; }
     QStringList labels;
     for (const QString &root : roots) {
         const QString relative = QDir(projectLibrary()).relativeFilePath(root);
         labels.append(QFileInfo(root).fileName() + " — " + relative.section('/', 0, 0));
     }
     bool ok = false;
-    const QString selected = QInputDialog::getItem(this, tr("Open project"), tr("Imported projects"), labels, 0, false, &ok);
+    const QString selected = QInputDialog::getItem(this, tr("Open project"), tr("Working copies (Save writes linked copies back to their folder)"), labels, 0, false, &ok);
     if (ok && !selected.isEmpty()) openProject(roots.at(labels.indexOf(selected)));
+}
+
+void MainWindow::openAndroidFolder() {
+    const QUrl uri = QFileDialog::getExistingDirectoryUrl(this, tr("Select project root folder"));
+    if (uri.isEmpty()) return;
+    const QString folder = projectLibrary() + "/folder-" + QUuid::createUuid().toString(QUuid::WithoutBraces);
+    archiveOperation(this, tr("Opening project folder…"), [=] {
+        return invokeArchive("openFolder", "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", uri.toString(), folder);
+    }, [this](const QJsonObject &result) {
+        const QString root = result.value("root").toString();
+        if (openProject(root)) {
+            statusBar()->showMessage(tr("Folder linked. Save writes changes back to the selected folder."), 8000);
+            emit androidProjectImported(root);
+        }
+    });
+}
+
+bool MainWindow::syncAndroidFolder() {
+    if (!isProjectOpen()) return true;
+    const QString root = editor->project->root;
+    if (!QFileInfo::exists(QFileInfo(root).absolutePath() + "/folder-link.properties")) return true;
+    // Save/close callers need a truthful success result; keep the GUI responsive
+    // while SAF performs disk I/O, and prevent another edit/save during the operation.
+    QProgressDialog progress(tr("Saving to project folder…"), QString(), 0, 0, this);
+    progress.setWindowModality(Qt::ApplicationModal); progress.setMinimumDuration(0);
+    QFutureWatcher<QString> watcher;
+    QEventLoop loop;
+    connect(&watcher, &QFutureWatcher<QString>::finished, &loop, &QEventLoop::quit);
+    watcher.setFuture(QtConcurrent::run([root] {
+        return invokeArchive("saveFolder", "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", root, QString());
+    }));
+    progress.show();
+    if (!watcher.isFinished()) loop.exec();
+    progress.close();
+    const auto result = QJsonDocument::fromJson(watcher.result().toUtf8()).object();
+    if (result.isEmpty() || result.contains("error")) {
+        QMessageBox::critical(this, tr("Folder save failed"), result.value("error").toString(tr("Android file service failed. Your working copy is still on this device.")));
+        return false;
+    }
+    return true;
 }
 
 void MainWindow::importAndroidProject() {
@@ -257,7 +357,7 @@ void MainWindow::exportAndroidProject() {
         QMessageBox::information(this, tr("Export project"), tr("Open an imported project first."));
         return;
     }
-    if (!save(false)) return;
+    if (!editor->saveAll()) return;
     const QString root = editor->project->root;
     const QString uri = QFileDialog::getSaveFileName(this, tr("Export project ZIP"), "porymap-project.zip", tr("ZIP archives (*.zip)"));
     if (uri.isEmpty()) return;

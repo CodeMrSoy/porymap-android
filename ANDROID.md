@@ -5,41 +5,43 @@ collision/elevation, undo/redo and saving. Android-specific code adds a small
 phone toolbar, full-width map/palette/list panels, Pan-mode touch gestures and
 project archive import/export. Desktop builds retain their existing interface.
 
-Use Android version **0.1.3 or later**. It includes an always-visible **Import
-ZIP** button, readable toolbar colors when Android uses dark mode, and Android's
-native display-density scaling. It also retains the startup and screen-sizing
-fixes. Map editing controls become available once a project has loaded.
+Version **0.2.0** adds project-folder access and a phone workspace. The header
+contains Open, Save and More; bottom navigation switches Map, Maps, Tiles and
+Tools. Desktop builds keep the desktop interface.
 
 ## Install and edit
 
-1. Open the repository's **Actions → Android APK** workflow and its latest
-   successful run. Download the **porymap-android-arm64-v8a** artifact, extract
-   the ZIP, and install the contained `.apk` on the phone. Android may ask you
-   to allow installation from the browser/file manager you chose.
-2. On your PC, ZIP a complete Porymap-compatible game source project. Include
-   `data`, `graphics`, `include`, `src`, `constants`, project config files and
-   other source folders. A `.gba` ROM alone cannot be opened. GitHub's
-   **Download ZIP** for the desired game branch is another option.
-3. Copy the ZIP to your phone. Tap **Import ZIP** at the top left and select
-   your game-source ZIP in Android's file picker. If prompted, select the
-   project's base game, e.g. `pokefirered`.
-4. Tap **Maps**, then a map name. **Palette** opens/closes the full-width tile
-   selector. Pick a tile and return to the canvas with **Palette**.
-5. Use **Paint**, **Fill**, or **Pick** with one finger. Switch to **Pan** for
-   dragging and two-finger pinch zoom. The zoom buttons are also available.
-6. **Collision** switches to collision/elevation editing and opens its selector.
-   Tap **Palette** to return to the canvas. Undo/redo use the native editor's
-   history. Toolbar actions that do not fit are in its overflow menu.
-7. **Save** saves to the phone's imported copy. **Project → Export project
-   ZIP** saves and exports that copy. Extract it on your PC and review its changes
-   on the intended Git branch before using it in desktop Porymap or building a ROM.
+1. Download the `porymap-android-arm64-v8a` artifact from a successful Android
+   APK run, extract it, and install the APK on an ARM64 phone.
+2. Put the complete game source repository on the phone. Tap **Open**, navigate
+   into its root (the folder containing `data`, `graphics`, `include`, etc.),
+   and tap Android's **Use this folder**, then **Allow**. A ROM alone is not a
+   source project. Android may prevent choosing the storage root or Downloads
+   itself; choose the actual project subfolder.
+3. Choose a map under **Maps**, select a tile under **Tiles**, then return to
+   **Map**. **Tools** provides Paint, Pan/pinch, Fill, Pick tile, collision,
+   undo/redo and zoom with large touch targets.
+4. Tap **Save** to save the working copy and write its changes back to the
+   selected folder. `.git` and build caches are excluded. Git operations remain
+   the responsibility of your Git client.
 
-Imports always create a new local project; importing the same ZIP again never
-overwrites an earlier phone session. Use **Open imported project** to resume it.
-The app saves pending project edits when Android backgrounds it. Export a ZIP
-before uninstalling the app: app-private projects are removed by uninstall.
-Development signing keys are cached in Actions to allow updates, but a cache
-reset or moving builds to another branch can require reinstalling a test build.
+Android grants a folder URI rather than an ordinary C++ filesystem path.
+Porymap therefore keeps a private working mirror, plus hashes of the source
+files it opened. Save writes only locally changed files (including additions
+and deletions), checking those source files for conflicts before any writes.
+Unrelated changes made outside Porymap are preserved. If the selected folder
+has conflicting changes, Save reports the file and retains your local edits.
+Use **More → Export ZIP** to recover those edits before opening a fresh copy.
+Providers do not offer a transaction across an entire project; a disconnected
+provider may cause a partial save. A saved per-file checkpoint permits retry.
+
+**Open** loads a fresh copy from the selected folder. **More → Recent working
+copies** resumes an existing on-device session, without pulling external edits.
+Backgrounding saves to the private working copy only; explicitly tap **Save**
+to update the selected folder. Uninstalling removes private copies, so save or
+export first. ZIP import/export remain under **More** for project transfer.
+ZIP imports are independent private projects and require Export ZIP to transfer
+their changes back. Development signing keys are cached for APK updates.
 
 Archives exclude `.git`, `build`, `.gradle`, `.cxx`, `__pycache__`, and
 `node_modules` directory components. Other project bytes, including PNGs,
@@ -72,7 +74,7 @@ make install INSTALL_ROOT="$PWD/android-build"
 
 Qt's normal Android Gradle template is used. The custom manifest and Java
 archive bridge are in `android/`. No broad external-storage permission is
-needed: Android's system picker grants access to the selected ZIP, and the
+needed: Android's system picker grants access to the selected folder or ZIP, and the
 native editor works on an app-private project copy.
 
 ## Validation and prototype limits

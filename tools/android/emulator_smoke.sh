@@ -9,6 +9,7 @@ collect_evidence() {
     adb exec-out screencap -p > "$evidence/device.png" || true
     adb exec-out run-as "$package" cat files/android-smoke.png > "$evidence/editor.png" || true
     adb exec-out run-as "$package" cat files/android-startup.png > "$evidence/startup.png" || true
+    for panel in 0 1 2; do adb exec-out run-as "$package" cat "files/android-panel-$panel.png" > "$evidence/panel-$panel.png" || true; done
 }
 trap collect_evidence EXIT
 adb shell getprop ro.build.version.release > "$evidence/android-version.txt"
@@ -26,9 +27,9 @@ for storage_attempt in $(seq 1 60); do
     sleep 2
 done
 if [ "$storage_ready" -ne 1 ]; then echo 'Emulator shared storage did not mount'; exit 1; fi
-adb push build/porymap-ui-fixture.zip /sdcard/Download/porymap-ui-fixture.zip
+adb push build/fixture/pokefirered /sdcard/Download/porymap-ui-fixture
 adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Download/porymap-ui-fixture.zip
-printf 'picker' | adb shell -T run-as "$package" sh -c '"cat > files/android-smoke.request"'
+printf 'folder' | adb shell -T run-as "$package" sh -c '"cat > files/android-smoke.request"'
 # Reproduce the system-dark-mode palette from the reported Pixel screenshot.
 adb shell cmd uimode night yes
 adb logcat -c
@@ -52,9 +53,12 @@ for attempt in $(seq 1 180); do
 done
 test -s "$evidence/result.json"
 python3 - "$evidence/result.json" <<'PY'
-import json, sys
+import hashlib, json, subprocess, sys
 result = json.load(open(sys.argv[1]))
 print(result)
 assert result.get('status') == 'passed', result
+remote = subprocess.check_output(['adb', 'exec-out', 'cat', '/sdcard/Download/porymap-ui-fixture/' + result['saved_block_path']])
+assert hashlib.sha256(remote).hexdigest() == result['saved_block_sha256'], 'Save did not update the selected source folder'
+print('Selected folder contains the edited map bytes: verified')
 PY
 adb shell pidof "$package"

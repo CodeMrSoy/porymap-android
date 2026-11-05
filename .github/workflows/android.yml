@@ -44,6 +44,8 @@ jobs:
           mkdir -p build/java-tests
           javac -d build/java-tests android/src/org/codemrsoy/porymap/ProjectArchive.java tests/android/ProjectArchiveTest.java
           java -cp build/java-tests org.codemrsoy.porymap.ProjectArchiveTest
+          javac -d build/java-tests android/src/org/codemrsoy/porymap/FolderSync.java tests/android/FolderSyncTest.java
+          java -cp build/java-tests org.codemrsoy.porymap.FolderSyncTest
       - name: Android SDK and NDK
         run: |
           for attempt in 1 2 3; do

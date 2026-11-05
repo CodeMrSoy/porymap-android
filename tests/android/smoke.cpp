@@ -4,6 +4,7 @@
 #include "movementpermissionsselector.h"
 #include <QApplication>
 #include <QDir>
+#include <QCryptographicHash>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -63,9 +64,9 @@ void MainWindow::runAndroidSmokeTest() {
         on_horizontalSlider_MetatileZoom_valueChanged(60);
         on_horizontalSlider_CollisionZoom_valueChanged(60);
         if (!fromPicker) grab().save(data + "/android-startup.png");
-        if (requested == "picker") {
-            auto *button = findChild<QToolButton *>("androidImportButton");
-            require(button && button->isVisible() && button->isEnabled(), "Import ZIP button is unavailable before project load");
+        if (requested == "picker" || requested == "folder") {
+            auto *button = findChild<QToolButton *>("androidOpenFolderButton");
+            require(button && button->isVisible() && button->isEnabled(), "Open folder button is unavailable before project load");
             const QPalette colors = button->palette();
             require(std::abs(qGray(colors.color(QPalette::ButtonText).rgb()) -
                              qGray(colors.color(QPalette::Button).rgb())) > 80,
@@ -137,6 +138,8 @@ void MainWindow::runAndroidSmokeTest() {
         require(changed.metatileId() == tile, "Collision edit lost tile ID");
         require(save(false), "Save failed");
         const QByteArray saved = read(blockPath);
+        result.insert("saved_block_path", QDir(path).relativeFilePath(blockPath));
+        result.insert("saved_block_sha256", QString::fromLatin1(QCryptographicHash::hash(saved, QCryptographicHash::Sha256).toHex()));
         require(saved.size() == originalFile.size() && saved != originalFile, "Saved block file is invalid");
         int differences = 0;
         for (int i = 0; i < saved.size(); ++i) differences += saved.at(i) != originalFile.at(i);
@@ -151,12 +154,19 @@ void MainWindow::runAndroidSmokeTest() {
         requirePhoneWindowFits(this);
         editor->layout->getBlock(10, 10, &reopened);
         require(reopened == changed, "ZIP round trip lost map edits");
+        for (int panel = 0; panel < 3; ++panel) {
+            showAndroidPanel(panel); requirePhoneWindowFits(this);
+            auto *button = findChild<QToolButton *>(QString("androidWorkspace%1").arg(panel));
+            require(button && button->width() >= 48 && button->height() >= 48, "Bottom navigation touch target is too small");
+            require(button->isVisible(), "Bottom navigation is hidden");
+            grab().save(data + QString("/android-panel-%1.png").arg(panel));
+        }
         showAndroidPanel(0);
         ui->graphicsView_Map->QGraphicsView::centerOn(168, 168);
         grab().save(data + "/android-smoke.png");
         result.insert("status", "passed");
         result.insert("checks", fromPicker
-            ? "Android touch, system ZIP picker import, load, canvas paint, undo, redo, collision, save, reopen, JNI ZIP export/import"
+            ? "Android touch, system folder picker, linked folder save, load, canvas paint, undo, redo, collision, reopen, JNI ZIP export/import, mobile panels"
             : "load, canvas paint, undo, redo, collision, save, reopen, JNI ZIP export/import");
     } catch (const std::exception &error) {
         result.insert("status", "failed"); result.insert("error", QString::fromUtf8(error.what()));
