@@ -128,6 +128,13 @@ save-back byte comparison, ZIP round trips, all workspace panels and the Tools
 dialog in portrait and landscape passed in
 [retest 41956806392](https://github.com/CodeMrSoy/porymap-android/actions/runs/41956806392).
 Its map, selector and Tools screenshots were inspected.
+Version **0.3.0** passed the complete Android 17 run in
+[build 42022985776](https://github.com/CodeMrSoy/porymap-android/actions/runs/42022985776),
+including hold/slide/release selection of Fill, Pick, Paint, Undo and Redo;
+two-finger pan and pinch with unchanged map data and history; canceled strokes;
+connection settings; folder save-back bytes; and portrait/landscape layouts.
+Portrait and landscape quick-menu screenshots were inspected. The ARM64 signing
+certificate matches 0.2.0, allowing an update without uninstalling it.
 Emulator tests run separately from compiler jobs with 4 GiB RAM/data storage;
 the workflow pins current SDK tools and checks the Android 17 AVD target before boot.
 
