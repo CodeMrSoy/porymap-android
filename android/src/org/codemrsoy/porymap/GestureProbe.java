@@ -58,10 +58,14 @@ final class GestureProbe {
             }, downTime + delay);
         }
         handler.postAtTime(() -> {
-            try (Writer output = new OutputStreamWriter(new FileOutputStream(resultPath), "UTF-8")) {
+            try {
                 JSONObject result = new JSONObject().put("frames", frames.length()).put("accepted", accepted.get());
                 if (failure.get() != null) result.put("error", failure.get());
-                output.write(result.toString());
+                File temporary = new File(resultPath + ".tmp");
+                try (Writer output = new OutputStreamWriter(new FileOutputStream(temporary), "UTF-8")) {
+                    output.write(result.toString());
+                }
+                if (!temporary.renameTo(new File(resultPath))) throw new IOException("Cannot publish touch probe result");
             } catch (Exception ignored) { /* The native test reports a missing result. */ }
         }, downTime + end + 80);
         return new JSONObject().put("scheduled", true).toString();
