@@ -139,6 +139,14 @@ two-finger pan and pinch with unchanged map data and history; canceled strokes;
 connection settings; folder save-back bytes; and portrait/landscape layouts.
 Portrait and landscape quick-menu screenshots were inspected. The ARM64 signing
 certificate matches 0.2.0, allowing an update without uninstalling it.
+Version **0.3.1** passed
+[build 42033099448](https://github.com/CodeMrSoy/porymap-android/actions/runs/42033099448).
+The regression test dispatches Android MotionEvents through the activity into Qt,
+moving each finger one physical pixel per frame at 0.5x, 1x and 6x zoom. It checks
+the accumulated camera distance, repeated gestures, large zoom-outs, reversing at
+the minimum zoom limit, resize recovery and pointer replacement without edits.
+Android's package manager loads the new adaptive and monochrome icon layers;
+the rendered color icon was inspected. The update certificate still matches 0.3.0.
 Emulator tests run separately from compiler jobs with 4 GiB RAM/data storage;
 the workflow pins current SDK tools and checks the Android 17 AVD target before boot.
 
