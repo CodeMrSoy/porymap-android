@@ -5,7 +5,11 @@ collision/elevation, undo/redo and saving. Android-specific code adds a small
 phone toolbar, full-width map/palette/list panels, Pan-mode touch gestures and
 project archive import/export. Desktop builds retain their existing interface.
 
-Version **0.3.0** adds hold-and-slide tools, two-finger navigation, an Edges
+Version **0.3.1** retains subpixel finger movement, anchors pan/zoom to the scene,
+and keeps the camera free at every zoom level. It also adds an adaptive pixel-map
+and pencil launcher icon, with a monochrome layer for themed icons.
+
+Version **0.3.0** introduced hold-and-slide tools, two-finger navigation, an Edges
 workspace and a muted slate theme. The header
 contains Open, Save and More; bottom navigation switches Map, Maps, Tiles and
 Edges. Desktop builds keep the desktop interface.

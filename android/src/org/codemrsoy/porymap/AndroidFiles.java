@@ -9,6 +9,25 @@ import java.io.*;
 public final class AndroidFiles {
     private AndroidFiles() {}
 
+    public static String dispatchTouch(Context context, String script, String resultPath) {
+        try { return GestureProbe.dispatch(context, script, resultPath); }
+        catch (Exception e) { return error(e); }
+    }
+
+    public static String renderLauncherIcon(Context context, String path, String unused) {
+        try {
+            android.graphics.drawable.Drawable icon = context.getPackageManager().getApplicationIcon(context.getApplicationInfo());
+            android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(192, 192, android.graphics.Bitmap.Config.ARGB_8888);
+            icon.setBounds(0, 0, 192, 192); icon.draw(new android.graphics.Canvas(bitmap));
+            try (OutputStream out = new FileOutputStream(path)) { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out); }
+            boolean adaptive = icon instanceof android.graphics.drawable.AdaptiveIconDrawable;
+            boolean themed = adaptive && android.os.Build.VERSION.SDK_INT >= 33 &&
+                ((android.graphics.drawable.AdaptiveIconDrawable) icon).getMonochrome() != null;
+            bitmap.recycle();
+            return new JSONObject().put("adaptive", adaptive).put("monochrome", themed).toString();
+        } catch (Exception e) { return error(e); }
+    }
+
     public static String openFolder(Context context, String uri, String destination) {
         try { return AndroidFolder.open(context, uri, destination); }
         catch (Exception e) { return error(e); }

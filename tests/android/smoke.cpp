@@ -9,6 +9,7 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QJniObject>
 #include <QStandardPaths>
 #include <QScreen>
@@ -214,6 +215,64 @@ void MainWindow::runAndroidSmokeTest() {
                 "A canceled stroke changed tiles or history");
         editor->setAndroidMapScale(scaleBefore);
         view->QGraphicsView::centerOn(168, 168);
+        // Reproduce Pixel-scale slow movement through Android MotionEvent and
+        // Qt's Android input delegate, not just Qt's synthetic touch device.
+        for (qreal scale : {0.5, 1.0, 6.0}) {
+            editor->setAndroidMapScale(scale); view->QGraphicsView::centerOn(168, 168); QTest::qWait(100);
+            const QPoint middle = viewport->rect().center();
+            const qreal density = screen()->devicePixelRatio();
+            const QPointF a = viewport->mapToGlobal(middle - QPoint(35, 0)) * density;
+            const QPointF b = viewport->mapToGlobal(middle + QPoint(35, 0)) * density;
+            QJsonArray frames;
+            auto finger = [](int id, QPointF p) { return QJsonObject{{"id", id}, {"x", p.x()}, {"y", p.y()}}; };
+            frames.append(QJsonObject{{"delay", 0}, {"action", 0}, {"points", QJsonArray{finger(0, a)}}});
+            frames.append(QJsonObject{{"delay", 60}, {"action", 261}, {"points", QJsonArray{finger(0, a), finger(1, b)}}});
+            for (int step = 1; step <= 32; ++step) {
+                const QPointF offset(step, 0);
+                frames.append(QJsonObject{{"delay", 60 + step * 24}, {"action", 2}, {"points", QJsonArray{finger(0, a + offset), finger(1, b + offset)}}});
+            }
+            const QPointF finalOffset(32, 0);
+            frames.append(QJsonObject{{"delay", 860}, {"action", 262}, {"points", QJsonArray{finger(0, a + finalOffset), finger(1, b + finalOffset)}}});
+            frames.append(QJsonObject{{"delay", 900}, {"action", 1}, {"points", QJsonArray{finger(0, a + finalOffset)}}});
+            const QString response = data + "/android-motion-result.json"; QFile::remove(response);
+            const QPointF before = view->mapToScene(middle);
+            require(archive("dispatchTouch", QString::fromUtf8(QJsonDocument(frames).toJson(QJsonDocument::Compact)), response).value("scheduled").toBool(), "Android touch probe did not start");
+            for (int attempt = 0; attempt < 500 && !QFile::exists(response); ++attempt) QTest::qWait(20);
+            const auto motion = QJsonDocument::fromJson(read(response)).object();
+            require(!motion.contains("error") && motion.value("accepted").toInt() > 0, "Android MotionEvent dispatch failed");
+            QTest::qWait(120);
+            const QPointF after = view->mapToScene(middle);
+            const qreal expected = 32 / density / scale;
+            require(qAbs((before.x() - after.x()) - expected) < 2 / scale,
+                    "Slow Android two-finger movement was lost or clamped");
+            require(layout->blockdata == beforeNavigation && layout->editHistory.index() == beforeIndex,
+                    "Android two-finger movement painted the map");
+        }
+        // Each zoom must remain pannable, including a large zoom-out in a
+        // single gesture, pointer replacement, and an in-progress layout resize.
+        editor->setAndroidMapScale(6); view->QGraphicsView::centerOn(168, 168);
+        auto robust = QTest::touchEvent(viewport, device, false);
+        const QPoint c = viewport->rect().center();
+        robust.press(4, c - QPoint(90, 0), viewport).press(8, c + QPoint(90, 0), viewport).commit();
+        robust.move(4, c - QPoint(8, 0), viewport).move(8, c + QPoint(8, 0), viewport).commit();
+        require(view->transform().m11() < 0.6, "Large pinch-in did not reach minimum zoom");
+        const QPointF zoomed = view->mapToScene(c);
+        robust.move(4, c + QPoint(22, 25), viewport).move(8, c + QPoint(38, 25), viewport).commit();
+        require(QLineF(zoomed, view->mapToScene(c)).length() > 30, "Map became pinned after zooming out");
+        QResizeEvent resize(viewport->size(), viewport->size()); QCoreApplication::sendEvent(viewport, &resize);
+        robust.move(4, c + QPoint(25, 25), viewport).move(8, c + QPoint(41, 25), viewport).commit();
+        const QPointF rebased = view->mapToScene(c);
+        robust.move(4, c + QPoint(45, 35), viewport).move(8, c + QPoint(61, 35), viewport).commit();
+        require(QLineF(rebased, view->mapToScene(c)).length() > 15, "Resize interrupted two-finger movement");
+        robust.stationary(4).release(8, c + QPoint(61, 35), viewport).commit();
+        robust.stationary(4).press(12, c + QPoint(85, 35), viewport).commit();
+        const QPointF replaced = view->mapToScene(c);
+        robust.move(4, c + QPoint(60, 35), viewport).move(12, c + QPoint(100, 35), viewport).commit();
+        require(QLineF(replaced, view->mapToScene(c)).length() > 10, "Replacing a finger stopped navigation");
+        robust.release(4, c + QPoint(60, 35), viewport).release(12, c + QPoint(100, 35), viewport).commit();
+        require(layout->blockdata == beforeNavigation && layout->editHistory.count() == beforeCount,
+                "Repeated navigation changed map data or history");
+        editor->setAndroidMapScale(scaleBefore); view->QGraphicsView::centerOn(168, 168);
         layout->editHistory.undo();
         Block undone; layout->getBlock(10, 10, &undone);
         require(undone == original, "Undo did not restore original block");
@@ -281,6 +340,8 @@ void MainWindow::runAndroidSmokeTest() {
         });
         closeConnections.start(300); showAndroidConnections(); closeConnections.stop();
         require(connectionFits, "Connection settings exceed phone bounds");
+        const auto icon = archive("renderLauncherIcon", data + "/android-launcher.png", QString());
+        require(icon.value("adaptive").toBool() && icon.value("monochrome").toBool(), "Adaptive or themed launcher icon is missing");
         showAndroidPanel(0); on_mapViewTab_tabBarClicked(MapViewTab::Metatiles);
         if (fromPicker) {
             QFile rotate(data + "/android-rotate.request");
@@ -299,7 +360,7 @@ void MainWindow::runAndroidSmokeTest() {
         grab().save(data + "/android-smoke.png");
         result.insert("status", "passed");
         result.insert("checks", fromPicker
-            ? "Android touch, folder save-back, hold-slide-release Fill/Pick/Paint/Undo/Redo, two-finger pan/pinch without edits, connections, portrait/landscape, ZIP round trip"
+            ? "Android MotionEvent slow-pixel pan at 0.5x/1x/6x, pinch and repeated navigation, resize and pointer replacement, no stray edits, adaptive icon, hold tools, connections, folder save-back, portrait/landscape"
             : "load, canvas paint, undo, redo, collision, save, reopen, JNI ZIP export/import");
     } catch (const std::exception &error) {
         result.insert("status", "failed"); result.insert("error", QString::fromUtf8(error.what()));

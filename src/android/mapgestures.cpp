@@ -4,6 +4,7 @@
 #include <QApplication>
 #include <QGraphicsView>
 #include <QLineF>
+#include <QMap>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScrollBar>
@@ -133,7 +134,12 @@ public:
 protected:
     bool eventFilter(QObject *object, QEvent *event) override {
         const auto type = event->type();
-        if (type == QEvent::Hide || type == QEvent::Resize) reset();
+        if (type == QEvent::Hide) reset();
+        if (type == QEvent::Resize) {
+            // Insets and layout changes must not drop a two-finger gesture.
+            if (state == Navigate) rebaseNavigation = true;
+            else reset();
+        }
         if (object != view->viewport() ||
             (type != QEvent::TouchBegin && type != QEvent::TouchUpdate && type != QEvent::TouchEnd && type != QEvent::TouchCancel))
             return false;
@@ -141,50 +147,47 @@ protected:
         auto *touch = static_cast<QTouchEvent *>(event);
         event->accept();
         if (type == QEvent::TouchCancel) { reset(); return true; }
-        QList<QPointF> active;
+        if (type == QEvent::TouchBegin) reset();
         QPointF released = last;
         for (const auto &point : touch->points()) {
-            if (point.state() != QEventPoint::State::Released) active.append(point.position());
-            else released = point.position();
+            if (point.state() != QEventPoint::State::Released) contacts.insert(point.id(), point.globalPosition());
+            else { contacts.remove(point.id()); released = view->viewport()->mapFromGlobal(point.globalPosition()); }
         }
-        if (active.size() >= 2) {
-            const QPointF center = (active[0] + active[1]) / 2;
-            const qreal distance = QLineF(active[0], active[1]).length();
-            if (state != Navigate) {
+        if (type == QEvent::TouchEnd) contacts.clear();
+        const auto ids = contacts.keys();
+        if (ids.size() >= 2) {
+            const bool changedPair = !contacts.contains(firstPointer) || !contacts.contains(secondPointer);
+            if (state != Navigate || changedPair) { firstPointer = ids[0]; secondPointer = ids[1]; rebaseNavigation = true; }
+            const QPointF a = localPosition(firstPointer), b = localPosition(secondPointer);
+            const QPointF center = (a + b) / 2;
+            const qreal distance = QLineF(a, b).length();
+            if (state != Navigate || rebaseNavigation) {
                 hold.stop(); path.clear(); overlay->hide(); state = Navigate;
-                // Give both small and large maps room to move without visible scrollbars.
-                const qreal scale = view->transform().m11();
-                const qreal pad = qMax(view->viewport()->width(), view->viewport()->height()) / qMax(0.1, scale);
-                view->setSceneRect(view->scene()->itemsBoundingRect().adjusted(-pad, -pad, pad, pad));
-            } else if (pinchDistance > 0) {
-                const QPoint delta = (center - panCenter).toPoint();
-                view->horizontalScrollBar()->setValue(view->horizontalScrollBar()->value() - delta.x());
-                view->verticalScrollBar()->setValue(view->verticalScrollBar()->value() - delta.y());
-                const QPointF anchor = view->mapToScene(center.toPoint());
-                const qreal factor = qBound(0.5, view->transform().m11() * distance / pinchDistance, 6.0);
-                editor->setAndroidMapScale(factor);
-                const QPointF after = view->mapToScene(center.toPoint());
-                view->centerOn(view->mapToScene(view->viewport()->rect().center()) + anchor - after);
+                navigationAnchor = view->viewportTransform().inverted().map(center);
+                navigationDistance = qMax(1.0, distance);
+                navigationScale = view->transform().m11();
+                contentBounds = view->scene()->itemsBoundingRect();
+                rebaseNavigation = false;
             }
-            panCenter = center; pinchDistance = distance;
+            moveCamera(center, distance);
             return true;
         }
         if (state == Navigate) {
             // Do not turn the remaining finger into a paint stroke.
-            pinchDistance = 0;
-            if (active.isEmpty()) reset();
+            rebaseNavigation = true;
+            if (ids.isEmpty()) reset();
             return true;
         }
-        if (type == QEvent::TouchBegin && active.size() == 1) {
-            reset(); origin = last = active[0]; path.append(origin); state = Pending;
+        if (type == QEvent::TouchBegin && ids.size() == 1) {
+            origin = last = localPosition(ids[0]); path.append(origin); state = Pending;
             if (allowMenu) hold.start();
             return true;
         }
-        const QPointF position = active.isEmpty() ? released : active[0];
+        const QPointF position = ids.isEmpty() ? released : localPosition(ids[0]);
         if (state == Menu) {
             if (QLineF(origin, position).length() > QApplication::startDragDistance()) engaged = true;
             if (engaged) overlay->highlight(position);
-            if (active.isEmpty()) {
+            if (ids.isEmpty()) {
                 const int selected = engaged ? overlay->hit(position) : -1;
                 reset();
                 if (selected == 0) editor->setEditAction(Editor::EditAction::Paint);
@@ -203,7 +206,7 @@ protected:
             if (QLineF(last, position).length() >= 1) path.append(position);
             last = position;
             if (state == Stroke) overlay->preview(path);
-            if (active.isEmpty()) {
+            if (ids.isEmpty()) {
                 // Commit the native stroke only after all fingers are up. A second
                 // finger or OS cancellation therefore leaves the undo/redo history intact.
                 const auto stroke = path;
@@ -226,10 +229,31 @@ private:
     bool allowMenu, engaged = false;
     QPointer<GestureOverlay> overlay;
     QTimer hold;
-    QPointF origin, last, panCenter;
-    qreal pinchDistance = 0;
+    QPointF origin, last, navigationAnchor;
+    QMap<int, QPointF> contacts;
+    int firstPointer = -1, secondPointer = -1;
+    bool rebaseNavigation = true;
+    qreal navigationDistance = 1, navigationScale = 1;
+    QRectF contentBounds;
     QList<QPointF> path;
-    void reset() { hold.stop(); if (overlay) overlay->hide(); path.clear(); state = Idle; engaged = false; pinchDistance = 0; }
+    void reset() {
+        hold.stop(); if (overlay) overlay->hide(); path.clear(); contacts.clear();
+        state = Idle; engaged = false; rebaseNavigation = true; firstPointer = secondPointer = -1;
+    }
+    QPointF localPosition(int id) const { return view->viewport()->mapFromGlobal(contacts.value(id)); }
+    void moveCamera(QPointF center, qreal distance) {
+        // An absolute scene anchor avoids accumulating rounded scrollbar deltas.
+        const qreal scale = qBound(0.5, navigationScale * distance / navigationDistance, 6.0);
+        if (qAbs(view->transform().m11() - scale) > 0.000001) editor->setAndroidMapScale(scale);
+        const QSizeF size(view->viewport()->width() / scale, view->viewport()->height() / scale);
+        const QPointF middle(view->viewport()->width() / 2.0, view->viewport()->height() / 2.0);
+        const QPointF camera = navigationAnchor - (center - middle) / scale;
+        QRectF visible(camera - QPointF(size.width() / 2, size.height() / 2), size);
+        // Expand around the camera at every zoom level, including maps smaller
+        // than the viewport. Navigation must never be pinned by scene bounds.
+        view->setSceneRect(contentBounds.united(visible.adjusted(-size.width(), -size.height(), size.width(), size.height())));
+        view->centerOn(camera);
+    }
     void mouse(QEvent::Type type, QPointF point) {
         QMouseEvent event(type, point, view->viewport()->mapToGlobal(point.toPoint()),
             type == QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton,
