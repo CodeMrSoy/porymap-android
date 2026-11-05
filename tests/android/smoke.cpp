@@ -272,6 +272,14 @@ void MainWindow::runAndroidSmokeTest() {
         robust.release(4, c + QPoint(60, 35), viewport).release(12, c + QPoint(100, 35), viewport).commit();
         require(layout->blockdata == beforeNavigation && layout->editHistory.count() == beforeCount,
                 "Repeated navigation changed map data or history");
+        editor->setAndroidMapScale(1);
+        auto limit = QTest::touchEvent(viewport, device, false);
+        limit.press(2, c - QPoint(50, 0), viewport).press(3, c + QPoint(50, 0), viewport).commit();
+        limit.move(2, c - QPoint(4, 0), viewport).move(3, c + QPoint(4, 0), viewport).commit();
+        require(qAbs(view->transform().m11() - 0.5) < 0.01, "Pinch did not clamp at minimum zoom");
+        limit.move(2, c - QPoint(8, 0), viewport).move(3, c + QPoint(8, 0), viewport).commit();
+        require(view->transform().m11() > 0.8, "Pinch remained stuck after reversing at minimum zoom");
+        limit.release(2, c - QPoint(8, 0), viewport).release(3, c + QPoint(8, 0), viewport).commit();
         editor->setAndroidMapScale(scaleBefore); view->QGraphicsView::centerOn(168, 168);
         layout->editHistory.undo();
         Block undone; layout->getBlock(10, 10, &undone);

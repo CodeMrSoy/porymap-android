@@ -243,7 +243,8 @@ private:
     QPointF localPosition(int id) const { return view->viewport()->mapFromGlobal(contacts.value(id)); }
     void moveCamera(QPointF center, qreal distance) {
         // An absolute scene anchor avoids accumulating rounded scrollbar deltas.
-        const qreal scale = qBound(0.5, navigationScale * distance / navigationDistance, 6.0);
+        const qreal requested = navigationScale * distance / navigationDistance;
+        const qreal scale = qBound(0.5, requested, 6.0);
         if (qAbs(view->transform().m11() - scale) > 0.000001) editor->setAndroidMapScale(scale);
         const QSizeF size(view->viewport()->width() / scale, view->viewport()->height() / scale);
         const QPointF middle(view->viewport()->width() / 2.0, view->viewport()->height() / 2.0);
@@ -253,6 +254,11 @@ private:
         // than the viewport. Navigation must never be pinned by scene bounds.
         view->setSceneRect(contentBounds.united(visible.adjusted(-size.width(), -size.height(), size.width(), size.height())));
         view->centerOn(camera);
+        if (!qFuzzyCompare(requested, scale)) {
+            // Reverse direction immediately at a zoom limit instead of having
+            // to unwind the finger movement that went beyond that limit.
+            navigationScale = scale; navigationDistance = qMax(1.0, distance);
+        }
     }
     void mouse(QEvent::Type type, QPointF point) {
         QMouseEvent event(type, point, view->viewport()->mapToGlobal(point.toPoint()),
