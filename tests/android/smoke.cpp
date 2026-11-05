@@ -200,6 +200,13 @@ void MainWindow::runAndroidSmokeTest() {
         navigation.release(0, center, viewport).commit();
         require(layout->blockdata == beforeNavigation && layout->editHistory.index() == beforeIndex && layout->editHistory.count() == beforeCount,
                 "Two-finger navigation changed tiles or undo/redo history");
+        auto canceled = QTest::touchEvent(viewport, device, false);
+        canceled.press(0, center, viewport).commit(); canceled.move(0, center + QPoint(25, 0), viewport).commit();
+        QTouchEvent cancel(QEvent::TouchCancel, device);
+        QCoreApplication::sendEvent(viewport, &cancel);
+        canceled.release(0, center + QPoint(25, 0), viewport).commit();
+        require(layout->blockdata == beforeNavigation && layout->editHistory.index() == beforeIndex && layout->editHistory.count() == beforeCount,
+                "A canceled stroke changed tiles or history");
         editor->setAndroidMapScale(scaleBefore);
         view->QGraphicsView::centerOn(168, 168);
         layout->editHistory.undo();

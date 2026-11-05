@@ -29,7 +29,7 @@ public:
     QList<QPointF> stroke;
     QList<QRectF> targets;
     QGraphicsView *mapView;
-    Editor *engine;
+    QPointer<Editor> engine;
     void openMenu(QPointF origin, bool undo, bool redo) {
         setGeometry(parentWidget()->rect());
         menu = true; stroke.clear(); selected = -1;
@@ -67,6 +67,7 @@ public:
     }
 protected:
     void paintEvent(QPaintEvent *) override {
+        if (!engine) return;
         QPainter painter(this); painter.setRenderHint(QPainter::Antialiasing);
         if (!menu) {
             if (stroke.size() < 2) return;
@@ -124,7 +125,7 @@ public:
         view->viewport()->installEventFilter(this);
         hold.setSingleShot(true); hold.setInterval(480);
         connect(&hold, &QTimer::timeout, this, [this] {
-            if (state != Pending || !allowMenu || !this->editor->layout) return;
+            if (state != Pending || !allowMenu || !this->editor || !this->editor->layout || !overlay) return;
             state = Menu;
             overlay->openMenu(origin, this->editor->editGroup.canUndo(), this->editor->editGroup.canRedo());
         });
@@ -133,9 +134,10 @@ protected:
     bool eventFilter(QObject *object, QEvent *event) override {
         const auto type = event->type();
         if (type == QEvent::Hide || type == QEvent::Resize) reset();
-        if (object != view->viewport() || !editor->project || !editor->layout || !view->scene() ||
+        if (object != view->viewport() ||
             (type != QEvent::TouchBegin && type != QEvent::TouchUpdate && type != QEvent::TouchEnd && type != QEvent::TouchCancel))
             return false;
+        if (!editor || !editor->project || !editor->layout || !view->scene() || !overlay) return false;
         auto *touch = static_cast<QTouchEvent *>(event);
         event->accept();
         if (type == QEvent::TouchCancel) { reset(); return true; }
@@ -220,14 +222,14 @@ protected:
 private:
     enum State { Idle, Pending, Stroke, Navigate, Menu } state = Idle;
     QGraphicsView *view;
-    Editor *editor;
+    QPointer<Editor> editor;
     bool allowMenu, engaged = false;
-    GestureOverlay *overlay;
+    QPointer<GestureOverlay> overlay;
     QTimer hold;
     QPointF origin, last, panCenter;
     qreal pinchDistance = 0;
     QList<QPointF> path;
-    void reset() { hold.stop(); overlay->hide(); path.clear(); state = Idle; engaged = false; pinchDistance = 0; }
+    void reset() { hold.stop(); if (overlay) overlay->hide(); path.clear(); state = Idle; engaged = false; pinchDistance = 0; }
     void mouse(QEvent::Type type, QPointF point) {
         QMouseEvent event(type, point, view->viewport()->mapToGlobal(point.toPoint()),
             type == QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton,
