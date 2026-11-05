@@ -77,6 +77,7 @@ try:
         entry = next((n for n in nodes if n.get("text", "").startswith("porymap-ui-fixture")), None)
         if entry is not None:
             tap(entry)
+            time.sleep(1)
             selected = True
             break
         downloads = named(nodes, "Downloads")
@@ -99,15 +100,20 @@ try:
         use = named(nodes, "USE THIS FOLDER")
         if use is None:
             use = named(nodes, "Use this folder")
-        if use is not None:
+        if use is not None and use.get("enabled") == "true":
             tap(use)
-            time.sleep(1)
-            nodes = snapshot()
-            allow = named(nodes, "ALLOW")
-            if allow is None:
-                allow = named(nodes, "Allow")
-            if allow is not None:
-                tap(allow)
+            for _ in range(8):
+                time.sleep(1)
+                nodes = snapshot()
+                allow = named(nodes, "ALLOW")
+                if allow is None:
+                    allow = named(nodes, "Allow")
+                if allow is not None and allow.get("enabled") == "true":
+                    screenshot("folder-permission.png")
+                    tap(allow)
+                    break
+            else:
+                raise RuntimeError("Folder picker did not show its permission confirmation")
             break
         time.sleep(1)
     else:
