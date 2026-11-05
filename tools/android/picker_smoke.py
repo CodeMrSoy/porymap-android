@@ -121,6 +121,18 @@ try:
         raise RuntimeError("Imported project did not reach the canvas touch check")
     adb("shell", "input", "tap", str(paint["x"]), str(paint["y"]))
     adb("shell", "run-as", package, "touch", "files/android-touch.done")
+    for _ in range(180):
+        request = adb("exec-out", "run-as", package, "ls", "files/android-rotate.request", check=False)
+        if b"android-rotate.request" in request and b"No such" not in request:
+            adb("shell", "settings", "put", "system", "accelerometer_rotation", "0")
+            adb("shell", "settings", "put", "system", "user_rotation", "1")
+            break
+        result = adb("exec-out", "run-as", package, "cat", "files/android-smoke.result.json", check=False)
+        if b'"failed"' in result:
+            raise RuntimeError(result.decode(errors="replace"))
+        time.sleep(1)
+    else:
+        raise RuntimeError("App did not reach the landscape layout check")
     (evidence / "picker-result.json").write_text(json.dumps({
         "status": "passed", "checks": "Android touch opened SAF tree picker, selected project folder and tapped the paint canvas"
     }))

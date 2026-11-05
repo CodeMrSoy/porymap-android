@@ -10,6 +10,8 @@ collect_evidence() {
     adb exec-out run-as "$package" cat files/android-smoke.png > "$evidence/editor.png" || true
     adb exec-out run-as "$package" cat files/android-startup.png > "$evidence/startup.png" || true
     for panel in 0 1 2; do adb exec-out run-as "$package" cat "files/android-panel-$panel.png" > "$evidence/panel-$panel.png" || true; done
+    for panel in 0 1 2; do adb exec-out run-as "$package" cat "files/android-landscape-$panel.png" > "$evidence/landscape-$panel.png" || true; done
+    for orientation in portrait landscape; do adb exec-out run-as "$package" cat "files/android-tools-$orientation.png" > "$evidence/tools-$orientation.png" || true; done
 }
 trap collect_evidence EXIT
 adb shell getprop ro.build.version.release > "$evidence/android-version.txt"

@@ -4,6 +4,7 @@
 #include "movementpermissionsselector.h"
 #include <QApplication>
 #include <QDir>
+#include <QDialog>
 #include <QCryptographicHash>
 #include <QFile>
 #include <QJsonDocument>
@@ -154,12 +155,43 @@ void MainWindow::runAndroidSmokeTest() {
         requirePhoneWindowFits(this);
         editor->layout->getBlock(10, 10, &reopened);
         require(reopened == changed, "ZIP round trip lost map edits");
+        auto checkTools = [this, data](const QString &name) {
+            bool fits = false;
+            auto *tools = findChild<QToolButton *>("androidWorkspace3");
+            require(tools && tools->isVisible(), "Tools button is hidden");
+            QTimer timer; timer.setSingleShot(true);
+            connect(&timer, &QTimer::timeout, this, [&] {
+                auto *dialog = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+                if (dialog) {
+                    const QRect rect(dialog->mapToGlobal(QPoint()), dialog->size());
+                    fits = screen()->availableGeometry().contains(rect);
+                    dialog->grab().save(data + "/android-tools-" + name + ".png");
+                    dialog->accept();
+                }
+            });
+            timer.start(300);
+            QTest::mouseClick(tools, Qt::LeftButton);
+            timer.stop();
+            require(fits, "Tools dialog exceeds phone bounds");
+        };
+        checkTools("portrait");
         for (int panel = 0; panel < 3; ++panel) {
             showAndroidPanel(panel); requirePhoneWindowFits(this);
             auto *button = findChild<QToolButton *>(QString("androidWorkspace%1").arg(panel));
             require(button && button->width() >= 48 && button->height() >= 48, "Bottom navigation touch target is too small");
             require(button->isVisible(), "Bottom navigation is hidden");
             grab().save(data + QString("/android-panel-%1.png").arg(panel));
+        }
+        if (fromPicker) {
+            QFile rotate(data + "/android-rotate.request");
+            require(rotate.open(QIODevice::WriteOnly), "Cannot request landscape test"); rotate.close();
+            for (int i = 0; i < 150 && width() <= height(); ++i) QTest::qWait(200);
+            require(width() > height(), "Android did not rotate to landscape");
+            for (int panel = 0; panel < 3; ++panel) {
+                showAndroidPanel(panel); requirePhoneWindowFits(this);
+                grab().save(data + QString("/android-landscape-%1.png").arg(panel));
+            }
+            checkTools("landscape");
         }
         showAndroidPanel(0);
         ui->graphicsView_Map->QGraphicsView::centerOn(168, 168);

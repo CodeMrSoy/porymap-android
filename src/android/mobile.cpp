@@ -22,6 +22,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLineF>
+#include <QLineEdit>
 #include <QLayout>
 #include <QMenu>
 #include <QMessageBox>
@@ -30,6 +31,7 @@
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QScrollBar>
+#include <QScroller>
 #include <QTouchEvent>
 #include <QTimer>
 #include <QToolBar>
@@ -133,6 +135,20 @@ void MainWindow::initAndroidUi() {
     ui->frame_9->setMinimumWidth(0);
     ui->frame_Main->setMinimumWidth(0);
     ui->frame_Tilesets->hide(); // Avoid accidental tileset reassignment while painting.
+    for (auto corner : {Qt::TopLeftCorner, Qt::TopRightCorner})
+        if (auto *widget = ui->mapListContainer->cornerWidget(corner)) widget->hide();
+    ui->mapListContainer->tabBar()->setExpanding(true);
+    for (auto *bar : {ui->mapListToolBar_Groups, ui->mapListToolBar_Locations, ui->mapListToolBar_Layouts}) {
+        for (auto *button : bar->findChildren<QToolButton *>()) button->hide();
+        if (auto *search = bar->findChild<QLineEdit *>()) {
+            search->setPlaceholderText(tr("Search maps…"));
+            search->setMinimumHeight(44); search->setClearButtonEnabled(true);
+        }
+    }
+    for (auto *tree : {ui->mapList, ui->locationList, ui->layoutList}) {
+        tree->setStyleSheet("QTreeView::item { min-height: 48px; }");
+        QScroller::grabGesture(tree->viewport(), QScroller::TouchGesture);
+    }
     ui->graphicsView_Map->setTransformationAnchor(QGraphicsView::AnchorViewCenter);
     ui->graphicsView_Map->setResizeAnchor(QGraphicsView::AnchorViewCenter);
 
@@ -156,7 +172,7 @@ void MainWindow::initAndroidUi() {
     auto *title = new QLabel(tr("Porymap"), navigation);
     title->setObjectName("androidMapTitle");
     title->setMinimumWidth(0);
-    title->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+    title->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
     title->setStyleSheet("font-weight: bold; padding: 4px;");
     navigation->addWidget(title);
     ui->action_Save_Project->setText(tr("Save"));
