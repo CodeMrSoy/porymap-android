@@ -1,6 +1,9 @@
 name: Android APK retest
 
 on:
+  push:
+    branches: ['feature/android-*']
+    paths: ['.github/workflows/android-retest.yml', 'tools/android/picker_smoke.py', 'tools/android/emulator_smoke.sh']
   workflow_dispatch:
     inputs:
       build_run_id:

@@ -3,9 +3,9 @@ name: Android APK
 on:
   push:
     branches: [master, 'feature/android-*']
-    paths-ignore: ['docs/**', 'docsrc/**', '*.md']
+    paths-ignore: ['docs/**', 'docsrc/**', '*.md', '.github/workflows/android-retest.yml', 'tools/android/picker_smoke.py', 'tools/android/emulator_smoke.sh']
   pull_request:
-    paths-ignore: ['docs/**', 'docsrc/**', '*.md']
+    paths-ignore: ['docs/**', 'docsrc/**', '*.md', '.github/workflows/android-retest.yml', 'tools/android/picker_smoke.py', 'tools/android/emulator_smoke.sh']
   workflow_dispatch:
 
 permissions:

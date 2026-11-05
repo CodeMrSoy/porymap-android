@@ -77,6 +77,8 @@ try:
             selected = True
             break
         downloads = named(nodes, "Downloads")
+        if downloads is None:
+            downloads = named(nodes, "Download")
         roots = named(nodes, "Show roots")
         if downloads is not None:
             tap(downloads)
@@ -110,7 +112,7 @@ try:
     # Wait for the source project to finish importing/loading, then paint via
     # the same Android input path as a finger, rather than a Qt mouse test.
     paint = None
-    for _ in range(180):
+    for _ in range(600):
         try:
             paint = json.loads(adb("exec-out", "run-as", package, "cat",
                                    "files/android-paint-target.json", check=False))
