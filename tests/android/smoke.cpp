@@ -136,10 +136,15 @@ void MainWindow::runAndroidSmokeTest() {
         auto *gesture = view->findChild<QObject *>("androidGestures");
         require(gesture, "Map gesture controller is missing");
         auto holdChoose = [&](int option, const QString &snapshot = QString()) {
+            // Switching back from Edges queues a viewport resize. Let that
+            // finish before starting a new finger sequence; resize correctly
+            // cancels a gesture that was already in progress.
+            QTest::qWait(250);
             const QPoint start = viewport->rect().center();
             auto sequence = QTest::touchEvent(viewport, device, false);
-            sequence.press(0, start, viewport).commit(); QTest::qWait(560);
+            sequence.press(0, start, viewport).commit();
             auto *menu = viewport->findChild<QWidget *>("androidQuickMenu");
+            for (int attempt = 0; attempt < 30 && menu && !menu->isVisible(); ++attempt) QTest::qWait(50);
             require(menu && menu->isVisible(), "Press and hold did not open the quick menu");
             for (int i = 0; i < 5; ++i) {
                 const QRectF target = menu->property(qPrintable(QString("target%1").arg(i))).toRectF();
