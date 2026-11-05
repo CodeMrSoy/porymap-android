@@ -84,12 +84,16 @@ binary/map/event round trips, edited-file preservation, path traversal,
 extraction limits, cleanup of failed imports and refusing to overwrite existing
 projects. The x86_64 emulator uses Android **17 / API 37** with system dark mode
 enabled. It launches with no project, checks palette zoom, screen bounds and
-import-button contrast/enabled state. Android input taps **Import ZIP**, opens
-the real system picker and selects an upstream `pret/pokefirered` source ZIP.
-After import, another Android input tap paints a tile on the canvas. The check
+open-button contrast/enabled state. Android input taps **Open**, navigates into
+an upstream `pret/pokefirered` source folder and confirms **Use this folder**.
+After loading, another Android input tap paints a tile on the canvas. The check
 then exercises undo/redo and collision editing,
 saves and reopens it, then exports/imports the project through the Android JNI
-bridge and checks that the edited block survives. Results, screenshots and
+bridge and checks that the edited block survives. It also compares the map bytes
+in the originally selected folder to the saved working copy, checks the three
+workspace panels, rotates the device, and checks the Tools dialog in portrait
+and landscape. Host tests cover folder conflicts, retries, unchanged files,
+create/delete and Git-directory preservation. Results, screenshots and
 device logs are uploaded as `android-emulator-evidence`.
 Window bounds are checked again after loading and reimporting a project.
 

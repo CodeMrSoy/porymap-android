@@ -4,7 +4,7 @@
 
 This fork adds a native Qt/C++ Android build, targeting ARM64 phones such as the
 Pixel 10 Pro. The original desktop editor remains available. Android setup,
-project ZIP import/export, touch controls and test status are documented in
+project-folder access, ZIP transfer, touch controls and test status are documented in
 [ANDROID.md](ANDROID.md).
 
 APK builds are available as artifacts in this repository's
